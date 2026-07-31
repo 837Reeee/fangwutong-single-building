@@ -91,6 +91,7 @@ test("recalculates existing meter records after utility rate changes", async () 
   const response = await render();
   const html = await response.text();
   assert.match(html, /function updateExistingMeterRates/);
+  assert.match(html, /const synchronizedMeterRates = updateExistingMeterRates/);
   assert.match(html, /record\.waterRate = waterRate/);
   assert.match(html, /record\.electricRate = electricRate/);
   assert.match(html, /record\.waterCharge = Number/);

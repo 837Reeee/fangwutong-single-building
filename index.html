@@ -2233,6 +2233,13 @@
       const toast = document.getElementById("toast");
 
       let state = loadState();
+      const synchronizedMeterRates = updateExistingMeterRates(
+        Number(state.settings.waterRate),
+        Number(state.settings.electricRate),
+      );
+      if (synchronizedMeterRates) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
       let activeView = "room-overview";
       let expandedGroups = new Set(MENU.map((group) => group.id));
       let roomQuery = "";
@@ -5752,12 +5759,24 @@
           ) {
             return;
           }
-          record.waterUsage = Number(waterUsage.toFixed(2));
-          record.electricUsage = Number(electricUsage.toFixed(2));
+          const normalizedWaterUsage = Number(waterUsage.toFixed(2));
+          const normalizedElectricUsage = Number(electricUsage.toFixed(2));
+          const waterCharge = Number((normalizedWaterUsage * waterRate).toFixed(2));
+          const electricCharge = Number((normalizedElectricUsage * electricRate).toFixed(2));
+          const unchanged =
+            Number(record.waterUsage) === normalizedWaterUsage &&
+            Number(record.electricUsage) === normalizedElectricUsage &&
+            Number(record.waterRate) === waterRate &&
+            Number(record.electricRate) === electricRate &&
+            Number(record.waterCharge) === waterCharge &&
+            Number(record.electricCharge) === electricCharge;
+          if (unchanged) return;
+          record.waterUsage = normalizedWaterUsage;
+          record.electricUsage = normalizedElectricUsage;
           record.waterRate = waterRate;
           record.electricRate = electricRate;
-          record.waterCharge = Number((record.waterUsage * waterRate).toFixed(2));
-          record.electricCharge = Number((record.electricUsage * electricRate).toFixed(2));
+          record.waterCharge = waterCharge;
+          record.electricCharge = electricCharge;
           record.updatedAt = changedAt;
           updated += 1;
         });

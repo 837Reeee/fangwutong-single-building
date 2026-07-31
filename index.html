@@ -987,6 +987,63 @@
         font-size: 19px;
       }
 
+      .receipt-preview-frame {
+        position: relative;
+        display: grid;
+        min-height: 210px;
+        overflow: hidden;
+        place-items: center;
+        border: 1px solid var(--slate-200);
+        border-radius: 14px;
+        background:
+          linear-gradient(135deg, rgba(77, 36, 108, 0.04), rgba(35, 104, 170, 0.04)),
+          white;
+      }
+
+      .receipt-preview-image {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: #f8f6fa;
+      }
+
+      .receipt-preview-status {
+        padding: 32px 18px;
+        color: var(--slate-500);
+        font-size: 11px;
+        text-align: center;
+      }
+
+      .receipt-preview-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 11px;
+      }
+
+      .receipt-preview-actions span {
+        color: var(--slate-500);
+        font-size: 10px;
+      }
+
+      .receipt-preview-dialog {
+        width: min(96vw, 1240px);
+      }
+
+      .receipt-preview-dialog .dialog-body {
+        padding: 12px;
+        background: #e8edf2;
+      }
+
+      .receipt-preview-dialog img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+        background: white;
+      }
+
       .notice {
         display: flex;
         align-items: flex-start;
@@ -2048,6 +2105,19 @@
       </div>
     </dialog>
 
+    <dialog class="receipt-preview-dialog" id="receipt-preview-dialog" aria-labelledby="receipt-preview-title">
+      <div class="dialog-header">
+        <div>
+          <h2 class="dialog-title" id="receipt-preview-title">最终收据预览</h2>
+          <p class="panel-subtitle">预览内容与下载的高清 PNG 一致</p>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="receipt-preview-dialog" aria-label="关闭收据预览">×</button>
+      </div>
+      <div class="dialog-body">
+        <img id="receipt-preview-dialog-image" alt="最终收据大图预览" />
+      </div>
+    </dialog>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <canvas id="receipt-canvas" hidden></canvas>
 
@@ -2130,6 +2200,10 @@
       let receiptPeriodFilter = CURRENT_PERIOD;
       let selectedReceiptIds = new Set();
       let receiptCreateMode = "single";
+      let batchPreviewRoomId = "";
+      let receiptPreviewUrl = "";
+      let receiptPreviewTimer = 0;
+      let receiptPreviewGeneration = 0;
       let batchReceiptDraft = {
         period: CURRENT_PERIOD,
         roomIds: new Set(),
@@ -2413,6 +2487,11 @@
         syncDynamicCalculations();
         if (activeView === "meter-import" && importDraft.stage === "align") {
           requestAnimationFrame(() => drawAlignmentEditor());
+        }
+        if (activeView === "receipt-create") {
+          scheduleReceiptPreview();
+        } else {
+          clearReceiptPreviewUrl();
         }
       }
 
@@ -4661,6 +4740,9 @@
           [...batchReceiptDraft.roomIds].filter((roomId) => eligibleIds.has(roomId)),
         );
         const selectedRooms = rooms.filter((room) => batchReceiptDraft.roomIds.has(room.id));
+        if (!selectedRooms.some((room) => room.id === batchPreviewRoomId)) {
+          batchPreviewRoomId = selectedRooms[0]?.id || "";
+        }
         const selectedTotal = selectedRooms.reduce(
           (sum, room) => sum + batchReceiptAmounts(room, batchReceiptDraft.period).total,
           0,
@@ -4767,6 +4849,46 @@
               </form>
             </div>
           </section>
+          ${renderBatchReceiptPreview(selectedRooms)}
+        `;
+      }
+
+      function renderBatchReceiptPreview(selectedRooms) {
+        if (!selectedRooms.length) {
+          return `
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2 class="panel-title">最终收据预览</h2>
+                  <p class="panel-subtitle">选择至少一个房间后可查看最终版式</p>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="receipt-preview-frame">
+                  <span class="receipt-preview-status">尚未选择需要开具收据的房间</span>
+                </div>
+              </div>
+            </section>
+          `;
+        }
+        return `
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">最终收据预览</h2>
+                <p class="panel-subtitle">逐间确认批量收据的最终版式和金额</p>
+              </div>
+              <label class="field" style="width:min(100%,220px)">
+                <span class="sr-only">选择预览房间</span>
+                <select class="field-select" id="batch-preview-room" aria-label="选择预览房间">
+                  ${selectedRooms.map((room) => `<option value="${room.id}" ${room.id === batchPreviewRoomId ? "selected" : ""}>${escapeHtml(room.number)}房</option>`).join("")}
+                </select>
+              </label>
+            </div>
+            <div class="panel-body">
+              ${receiptPreviewMarkup("batch-receipt-final-preview")}
+            </div>
+          </section>
         `;
       }
 
@@ -4815,6 +4937,10 @@
           submit.disabled = selectedRooms.length === 0;
           submit.textContent = `批量开具并下载（${selectedRooms.length}）`;
         }
+        if (!selectedRooms.some((room) => room.id === batchPreviewRoomId)) {
+          batchPreviewRoomId = selectedRooms[0]?.id || "";
+        }
+        renderView();
       }
 
       function renderReceiptCreate() {
@@ -4933,16 +5059,31 @@
             <aside class="panel">
               <div class="panel-header">
                 <div>
-                  <h2 class="panel-title">收据金额</h2>
-                  <p class="panel-subtitle">费用变更后实时更新</p>
+                  <h2 class="panel-title">最终收据预览</h2>
+                  <p class="panel-subtitle">表单内容变更后自动生成</p>
                 </div>
               </div>
               <div class="panel-body">
+                ${receiptPreviewMarkup("receipt-final-preview")}
+                <div style="height:14px"></div>
                 <div class="calc-box" id="receipt-calculation">
                   ${receiptCalculationMarkup(room.monthlyRent, waterCharge, electricCharge, room.sanitationAmount, room.tvAmount, room.internetAmount, room.managementAmount, room.otherAmount)}
                 </div>
               </div>
             </aside>
+          </div>
+        `;
+      }
+
+      function receiptPreviewMarkup(imageId) {
+        return `
+          <div class="receipt-preview-frame">
+            <span class="receipt-preview-status" id="${imageId}-status">正在生成最终收据预览…</span>
+            <img class="receipt-preview-image" id="${imageId}" alt="最终收据预览" hidden />
+          </div>
+          <div class="receipt-preview-actions">
+            <span>预览与保存后的高清 PNG 使用同一模板</span>
+            <button class="button button-secondary button-small" type="button" data-action="open-receipt-preview" disabled>查看大图</button>
           </div>
         `;
       }
@@ -5201,6 +5342,148 @@
         if (restoreFocus) (lastFocusedElement || menuButton).focus();
       }
 
+      function clearReceiptPreviewUrl() {
+        window.clearTimeout(receiptPreviewTimer);
+        receiptPreviewGeneration += 1;
+        if (receiptPreviewUrl) {
+          URL.revokeObjectURL(receiptPreviewUrl);
+          receiptPreviewUrl = "";
+        }
+      }
+
+      function previewAmount(value) {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+      }
+
+      function buildSingleReceiptPreview() {
+        const form = document.getElementById("receipt-form");
+        if (!form) return null;
+        const data = new FormData(form);
+        const room = state.rooms.find((candidate) => candidate.id === String(data.get("roomId")));
+        const period = String(data.get("period") || receiptContext.period);
+        if (!room || !period) return null;
+        const meter = state.meterRecords.find(
+          (record) => record.roomId === room.id && record.period === period,
+        );
+        return createReceiptRecord({
+          room,
+          period,
+          amounts: {
+            rent: previewAmount(data.get("rent")),
+            waterCharge: previewAmount(data.get("waterCharge")),
+            electricCharge: previewAmount(data.get("electricCharge")),
+            sanitationAmount: previewAmount(data.get("sanitationAmount")),
+            tvAmount: previewAmount(data.get("tvAmount")),
+            internetAmount: previewAmount(data.get("internetAmount")),
+            managementAmount: previewAmount(data.get("managementAmount")),
+            otherAmount: previewAmount(data.get("otherAmount")),
+          },
+          paymentMethod: String(data.get("paymentMethod") || room.paymentMethod || "微信"),
+          receivedAt: String(data.get("receivedAt") || toLocalDateInput(new Date())),
+          issuer: String(data.get("issuer") || state.settings.payee).trim(),
+          payee: String(data.get("payee") || state.settings.payee).trim(),
+          note: String(data.get("note") || "").trim(),
+          tenantName: String(data.get("tenantName") || room.tenantName).trim(),
+          meter,
+        });
+      }
+
+      function buildBatchReceiptPreview() {
+        const form = document.getElementById("batch-receipt-form");
+        if (!form || !batchPreviewRoomId) return null;
+        captureBatchReceiptDraft(form);
+        const period = String(new FormData(form).get("period") || batchReceiptDraft.period);
+        const selectedRooms = occupiedRooms()
+          .filter((room) => batchReceiptDraft.roomIds.has(room.id))
+          .filter(
+            (room) =>
+              !state.receipts.some(
+                (receipt) => receipt.roomId === room.id && receipt.period === period,
+              ),
+          )
+          .sort((a, b) =>
+            String(a.number).localeCompare(String(b.number), "zh-CN", { numeric: true }),
+          );
+        const roomIndex = selectedRooms.findIndex((room) => room.id === batchPreviewRoomId);
+        const room = selectedRooms[roomIndex];
+        if (!room || !period) return null;
+        const { meter, amounts } = batchReceiptAmounts(room, period);
+        const receipt = createReceiptRecord({
+          room,
+          period,
+          amounts,
+          paymentMethod:
+            batchReceiptDraft.paymentMethod === "room-default"
+              ? room.paymentMethod || "微信"
+              : batchReceiptDraft.paymentMethod,
+          receivedAt: batchReceiptDraft.receivedAt,
+          issuer: batchReceiptDraft.issuer,
+          payee: batchReceiptDraft.payee,
+          note: batchReceiptDraft.note,
+          meter,
+        });
+        receipt.serial = nextReceiptSerial(period, Math.max(0, roomIndex));
+        return receipt;
+      }
+
+      function scheduleReceiptPreview() {
+        window.clearTimeout(receiptPreviewTimer);
+        const generation = ++receiptPreviewGeneration;
+        receiptPreviewTimer = window.setTimeout(
+          () => refreshReceiptPreview(generation),
+          100,
+        );
+      }
+
+      async function refreshReceiptPreview(generation) {
+        const image = document.querySelector(".receipt-preview-image");
+        if (!image || generation !== receiptPreviewGeneration) return;
+        const status = document.getElementById(`${image.id}-status`);
+        const receipt =
+          receiptCreateMode === "batch"
+            ? buildBatchReceiptPreview()
+            : buildSingleReceiptPreview();
+        if (!receipt) {
+          image.hidden = true;
+          if (status) {
+            status.hidden = false;
+            status.textContent = "请先选择需要开具收据的房间";
+          }
+          document.querySelectorAll('[data-action="open-receipt-preview"]').forEach(
+            (button) => { button.disabled = true; },
+          );
+          return;
+        }
+        if (status) {
+          status.hidden = false;
+          status.textContent = "正在生成最终收据预览…";
+        }
+        try {
+          const blob = await createReceiptImageBlob(receipt);
+          if (generation !== receiptPreviewGeneration || !document.contains(image)) return;
+          if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
+          receiptPreviewUrl = URL.createObjectURL(blob);
+          image.src = receiptPreviewUrl;
+          image.hidden = false;
+          if (status) status.hidden = true;
+          document.querySelectorAll('[data-action="open-receipt-preview"]').forEach(
+            (button) => { button.disabled = false; },
+          );
+          const dialogImage = document.getElementById("receipt-preview-dialog-image");
+          if (dialogImage && document.getElementById("receipt-preview-dialog")?.open) {
+            dialogImage.src = receiptPreviewUrl;
+          }
+        } catch (error) {
+          console.error("收据预览生成失败", error);
+          image.hidden = true;
+          if (status) {
+            status.hidden = false;
+            status.textContent = "预览生成失败，请检查填写内容后重试";
+          }
+        }
+      }
+
       function syncDynamicCalculations() {
         const meterBox = document.getElementById("meter-calculation");
         if (meterBox) {
@@ -5226,7 +5509,7 @@
         }
       }
 
-      function nextReceiptSerial(period) {
+      function nextReceiptSerial(period, offset = 0) {
         const prefix = `RENT-${period.replace("-", "")}-`;
         const max = state.receipts
           .filter((receipt) => receipt.serial.startsWith(prefix))
@@ -5234,7 +5517,7 @@
             const sequence = Number(receipt.serial.slice(prefix.length));
             return Math.max(highest, Number.isFinite(sequence) ? sequence : 0);
           }, 0);
-        return `${prefix}${String(max + 1).padStart(3, "0")}`;
+        return `${prefix}${String(max + 1 + Math.max(0, Number(offset) || 0)).padStart(3, "0")}`;
       }
 
       function receiptMeterSnapshot(meter) {
@@ -5349,7 +5632,7 @@
       }
 
       function createReceiptImageBlob(receipt) {
-        const canvas = document.getElementById("receipt-canvas");
+        const canvas = document.createElement("canvas");
         canvas.width = 1800;
         canvas.height = 1040;
         const ctx = canvas.getContext("2d");
@@ -5860,7 +6143,18 @@
         if (!actionButton) return;
         const action = actionButton.dataset.action;
 
-        if (action === "set-receipt-create-mode") {
+        if (action === "open-receipt-preview") {
+          if (!receiptPreviewUrl) {
+            showToast("预览正在生成，请稍候");
+            return;
+          }
+          const dialog = document.getElementById("receipt-preview-dialog");
+          const dialogImage = document.getElementById("receipt-preview-dialog-image");
+          dialogImage.src = receiptPreviewUrl;
+          lastFocusedElement = actionButton;
+          dialog.showModal();
+          dialog.querySelector("[data-close-dialog]")?.focus();
+        } else if (action === "set-receipt-create-mode") {
           receiptCreateMode = actionButton.dataset.mode === "batch" ? "batch" : "single";
           if (receiptCreateMode === "batch") {
             batchReceiptDraft.issuer ||= state.settings.payee;
@@ -6029,6 +6323,9 @@
         if (event.target.matches(".meter-number, .receipt-amount")) {
           syncDynamicCalculations();
         }
+        if (event.target.closest("#receipt-form, #batch-receipt-form")) {
+          scheduleReceiptPreview();
+        }
         if (event.target.matches("[data-import-row][data-import-field]")) {
           const row = importDraft.rows[Number(event.target.dataset.importRow)];
           const field = event.target.dataset.importField;
@@ -6091,6 +6388,18 @@
             period: document.getElementById("receipt-period").value || CURRENT_PERIOD,
           };
           renderView();
+        }
+        if (
+          event.target.closest("#receipt-form, #batch-receipt-form") &&
+          event.target.id !== "receipt-room" &&
+          event.target.id !== "receipt-period" &&
+          event.target.id !== "batch-receipt-period"
+        ) {
+          scheduleReceiptPreview();
+        }
+        if (event.target.id === "batch-preview-room") {
+          batchPreviewRoomId = event.target.value;
+          scheduleReceiptPreview();
         }
         if (event.target.id === "meter-filter-period") {
           meterPeriodFilter = event.target.value;

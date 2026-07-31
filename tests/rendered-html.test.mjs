@@ -154,3 +154,18 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.match(html, /values\.currentElectric < values\.prevElectric/);
   assert.match(html, /已核对房号和全部读数/);
 });
+
+test("previews final single and batch receipts before saving", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /最终收据预览/);
+  assert.match(html, /receipt-final-preview/);
+  assert.match(html, /batch-receipt-final-preview/);
+  assert.match(html, /receipt-preview-dialog/);
+  assert.match(html, /scheduleReceiptPreview/);
+  assert.match(html, /buildSingleReceiptPreview/);
+  assert.match(html, /buildBatchReceiptPreview/);
+  assert.match(html, /createReceiptImageBlob\(receipt\)/);
+  assert.match(html, /data-action="open-receipt-preview"/);
+});

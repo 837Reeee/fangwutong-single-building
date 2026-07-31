@@ -3946,34 +3946,88 @@
             importDraft.alignment.corners,
           );
           updateImportProgress(22, "正在检测三列手写数据行");
-          const bands = detectFreeformRows(rectified, importDraft.alignment);
+          const alignment = importDraft.alignment;
+          const electricEnd = freeformElectricEndRatio(alignment);
+          const bands = detectFreeformRows(rectified, alignment, 0, alignment.columnOne);
           if (!bands.length) {
             throw new Error("未检测到数据行，请返回后调整橙色数据范围");
           }
+          const waterBands = matchFreeformColumnBands(
+            bands,
+            detectFreeformRows(
+              rectified,
+              alignment,
+              alignment.columnOne,
+              alignment.columnTwo,
+            ),
+          );
+          const electricBands = matchFreeformColumnBands(
+            bands,
+            detectFreeformRows(rectified, alignment, alignment.columnTwo, electricEnd),
+          );
           updateImportProgress(30, "正在加载本地手写数字模型");
           const session = await ensureOcrSession();
           const rows = [];
           for (let index = 0; index < bands.length; index += 1) {
             const band = bands[index];
-            const row = {
+            const roomNumber = await recognizeFreeformField(
+              rectified,
+              band,
+              0,
+              alignment.columnOne,
+              session,
+              "room",
+            );
+            rows.push({
               confirmed: false,
               skipped: false,
               previousAuto: false,
-              roomNumber: await recognizeFreeformField(rectified, band, 0, importDraft.alignment.columnOne, session, "room"),
-              currentWater: await recognizeFreeformField(rectified, band, importDraft.alignment.columnOne, importDraft.alignment.columnTwo, session, "reading"),
-              currentElectric: await recognizeFreeformField(rectified, band, importDraft.alignment.columnTwo, 1, session, "reading"),
+              roomNumber,
+              currentWater: { value: "", confidence: NaN, image: "", needsReview: true },
+              currentElectric: { value: "", confidence: NaN, image: "", needsReview: true },
               prevWater: { value: "", confidence: NaN, image: "", needsReview: false },
               prevElectric: { value: "", confidence: NaN, image: "", needsReview: false },
-            };
-            rows.push(row);
+            });
             updateImportProgress(
-              30 + ((index + 1) / bands.length) * 66,
-              `正在识别第 ${index + 1} 行，共 ${bands.length} 行`,
+              30 + ((index + 1) / bands.length) * 20,
+              `正在识别第 ${index + 1} 个房号，共 ${bands.length} 个`,
             );
             await nextFrame();
           }
           applyRoomSequenceCorrection(rows);
-          rows.forEach((row) => applyPreviousReadingToRow(row));
+          for (let index = 0; index < rows.length; index += 1) {
+            const row = rows[index];
+            const matchedRoom = state.rooms.find(
+              (room) => String(room.number) === row.roomNumber.value,
+            );
+            const previous = matchedRoom
+              ? latestReading(matchedRoom.id, importDraft.period)
+              : null;
+            row.currentWater = await recognizeFreeformField(
+              rectified,
+              waterBands[index],
+              alignment.columnOne,
+              alignment.columnTwo,
+              session,
+              "reading",
+              previous?.currentWater,
+            );
+            row.currentElectric = await recognizeFreeformField(
+              rectified,
+              electricBands[index],
+              alignment.columnTwo,
+              electricEnd,
+              session,
+              "reading",
+              previous?.currentElectric,
+            );
+            applyPreviousReadingToRow(row);
+            updateImportProgress(
+              50 + ((index + 1) / rows.length) * 46,
+              `正在识别第 ${index + 1} 行水电读数，共 ${rows.length} 行`,
+            );
+            await nextFrame();
+          }
           importDraft.rows = rows;
           importDraft.stage = "review";
           importDraft.progress = 100;
@@ -4112,9 +4166,20 @@
         return { x: safeX, y: safeY, width: safeWidth, height: safeHeight, gray };
       }
 
-      function detectFreeformRows(canvas, alignment) {
-        const left = canvas.width * 0.03;
-        const right = canvas.width * Math.max(0.08, alignment.columnOne - 0.015);
+      function freeformElectricEndRatio(alignment) {
+        const waterColumnWidth = Math.max(0.1, alignment.columnTwo - alignment.columnOne);
+        return Math.min(0.96, alignment.columnTwo + Math.max(0.16, waterColumnWidth * 1.45));
+      }
+
+      function detectFreeformRows(
+        canvas,
+        alignment,
+        startRatio = 0,
+        endRatio = alignment.columnOne,
+      ) {
+        const margin = canvas.width * 0.012;
+        const left = canvas.width * startRatio + margin;
+        const right = canvas.width * endRatio - margin;
         const top = canvas.height * alignment.dataTop;
         const bottom = canvas.height * alignment.dataBottom;
         const region = grayRegion(canvas, left, top, right - left, bottom - top);
@@ -4189,7 +4254,61 @@
         }));
       }
 
-      async function recognizeFreeformField(canvas, band, startRatio, endRatio, session, kind) {
+      function matchFreeformColumnBands(referenceBands, detectedBands) {
+        if (!detectedBands.length) return referenceBands.map((band) => ({ ...band }));
+        const referenceCenters = referenceBands.map((band) => (band.top + band.bottom) / 2);
+        const detectedCenters = detectedBands.map((band) => (band.top + band.bottom) / 2);
+        const pairedCount = Math.min(referenceCenters.length, detectedCenters.length);
+        const offsets = [];
+        for (let index = 0; index < pairedCount; index += 1) {
+          const referenceIndex = pairedCount === 1
+            ? 0
+            : Math.round((index / (pairedCount - 1)) * (referenceCenters.length - 1));
+          const detectedIndex = pairedCount === 1
+            ? 0
+            : Math.round((index / (pairedCount - 1)) * (detectedCenters.length - 1));
+          offsets.push(detectedCenters[detectedIndex] - referenceCenters[referenceIndex]);
+        }
+        offsets.sort((left, right) => left - right);
+        const offset = offsets[Math.floor(offsets.length / 2)] || 0;
+        const gaps = referenceCenters
+          .slice(1)
+          .map((center, index) => center - referenceCenters[index])
+          .sort((left, right) => left - right);
+        const typicalGap = gaps[Math.floor(gaps.length / 2)] || 48;
+        const used = new Set();
+        return referenceBands.map((reference, index) => {
+          const target = referenceCenters[index] + offset;
+          let bestIndex = -1;
+          let bestDistance = Infinity;
+          detectedCenters.forEach((center, candidateIndex) => {
+            if (used.has(candidateIndex)) return;
+            const distance = Math.abs(center - target);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              bestIndex = candidateIndex;
+            }
+          });
+          if (bestIndex >= 0 && bestDistance <= typicalGap * 0.48) {
+            used.add(bestIndex);
+            return detectedBands[bestIndex];
+          }
+          return {
+            top: reference.top + offset,
+            bottom: reference.bottom + offset,
+          };
+        });
+      }
+
+      async function recognizeFreeformField(
+        canvas,
+        band,
+        startRatio,
+        endRatio,
+        session,
+        kind,
+        minimumValue = null,
+      ) {
         const margin = canvas.width * 0.012;
         const x = canvas.width * startRatio + margin;
         const width = canvas.width * (endRatio - startRatio) - margin * 2;
@@ -4356,13 +4475,55 @@
         const confidences = output
           .filter((item) => item.digit !== ".")
           .map((item) => item.confidence);
-        const confidence = confidences.length ? Math.min(...confidences) : NaN;
+        let confidence = confidences.length ? Math.min(...confidences) : NaN;
+        if (
+          kind === "reading" &&
+          Number.isFinite(Number(minimumValue)) &&
+          Number(value) < Number(minimumValue)
+        ) {
+          const plausible = choosePlausibleReading(output, Number(minimumValue));
+          if (plausible && plausible.value !== value) {
+            value = plausible.value;
+            confidence = plausible.confidence;
+            uncertain = true;
+          }
+        }
         return {
           value,
           confidence,
           image: fieldCanvas.toDataURL("image/jpeg", 0.74),
           needsReview: uncertain || !Number.isFinite(confidence) || confidence < 0.72,
         };
+      }
+
+      function choosePlausibleReading(output, minimumValue) {
+        if (!output.length || output.some((item) => item.digit === ".")) return null;
+        let beams = [{ value: "", score: 0, confidence: 1 }];
+        output.forEach((item) => {
+          const candidates = Array.isArray(item.candidates) && item.candidates.length
+            ? item.candidates.slice(0, 3)
+            : [{ digit: item.digit, confidence: item.confidence }];
+          const next = [];
+          beams.forEach((beam) => {
+            candidates.forEach((candidate) => {
+              next.push({
+                value: `${beam.value}${candidate.digit}`,
+                score: beam.score + Math.log(Math.max(1e-7, candidate.confidence)),
+                confidence: Math.min(beam.confidence, candidate.confidence),
+              });
+            });
+          });
+          beams = next.sort((left, right) => right.score - left.score).slice(0, 256);
+        });
+        return beams
+          .filter((beam) => Number(beam.value) >= minimumValue)
+          .map((beam) => ({
+            ...beam,
+            adjustedScore:
+              beam.score -
+              Math.log1p((Number(beam.value) - minimumValue) / Math.max(10, minimumValue * 0.04)) * 0.12,
+          }))
+          .sort((left, right) => right.adjustedScore - left.adjustedScore)[0] || null;
       }
 
       function editDistance(left, right) {
@@ -4807,7 +4968,7 @@
         const digitWidth = maxX - minX + 1;
         const digitHeight = maxY - minY + 1;
         const targetSize = 20;
-        const tensorData = new Float32Array(28 * 28);
+        const rawTensor = new Float32Array(28 * 28);
         const fittedWidth = digitWidth >= digitHeight
           ? targetSize
           : Math.max(4, Math.round((digitWidth / digitHeight) * targetSize));
@@ -4820,10 +4981,44 @@
           for (let tx = 0; tx < fittedWidth; tx += 1) {
             const sx = Math.min(maxX, minX + Math.floor((tx / fittedWidth) * digitWidth));
             const sy = Math.min(maxY, minY + Math.floor((ty / fittedHeight) * digitHeight));
-            tensorData[(offsetY + ty) * 28 + offsetX + tx] = Math.max(
+            rawTensor[(offsetY + ty) * 28 + offsetX + tx] = Math.max(
               0,
               Math.min(1, (mean - gray[sy * width + sx]) / Math.max(45, mean)),
             );
+          }
+        }
+        const strengthened = new Float32Array(28 * 28);
+        for (let py = 1; py < 27; py += 1) {
+          for (let px = 1; px < 27; px += 1) {
+            let neighbor = 0;
+            for (let dy = -1; dy <= 1; dy += 1) {
+              for (let dx = -1; dx <= 1; dx += 1) {
+                neighbor = Math.max(neighbor, rawTensor[(py + dy) * 28 + px + dx]);
+              }
+            }
+            strengthened[py * 28 + px] = Math.max(
+              rawTensor[py * 28 + px],
+              neighbor * 0.62,
+            );
+          }
+        }
+        let mass = 0;
+        let massX = 0;
+        let massY = 0;
+        strengthened.forEach((value, index) => {
+          mass += value;
+          massX += (index % 28) * value;
+          massY += Math.floor(index / 28) * value;
+        });
+        const shiftX = mass ? Math.round(13.5 - massX / mass) : 0;
+        const shiftY = mass ? Math.round(13.5 - massY / mass) : 0;
+        const tensorData = new Float32Array(28 * 28);
+        for (let py = 0; py < 28; py += 1) {
+          for (let px = 0; px < 28; px += 1) {
+            const targetX = px + shiftX;
+            const targetY = py + shiftY;
+            if (targetX < 0 || targetX >= 28 || targetY < 0 || targetY >= 28) continue;
+            tensorData[targetY * 28 + targetX] = strengthened[py * 28 + px];
           }
         }
         const inputName = session.inputNames[0];
@@ -4836,7 +5031,15 @@
         for (let index = 1; index < probabilities.length; index += 1) {
           if (probabilities[index] > probabilities[digit]) digit = index;
         }
-        return { digit: String(digit), confidence: probabilities[digit] };
+        const candidates = probabilities
+          .map((confidence, candidate) => ({ digit: String(candidate), confidence }))
+          .sort((left, right) => right.confidence - left.confidence)
+          .slice(0, 3);
+        return {
+          digit: String(digit),
+          confidence: probabilities[digit],
+          candidates,
+        };
       }
 
       function softmax(values) {

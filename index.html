@@ -2994,8 +2994,8 @@
               <h3>拖动彩色控制点</h3>
               <ol>
                 <li>绿色圆点对准纸张四角。</li>
-                <li>橙色横线从第一行数据上方到最后一行下方。</li>
-                <li>蓝色竖线放在房号、水表、电表三列之间。</li>
+                <li>橙色横线从第一行数据上方到最后一行下方，可拖动圆点或整条线。</li>
+                <li>蓝色竖线放在房号、水表、电表三列之间，可拖动圆点或整条线。</li>
               </ol>
               <div class="alignment-legend" aria-hidden="true">
                 <span><i style="--legend-color:#35b779"></i>纸张四角</span>
@@ -3653,12 +3653,64 @@
         const y = (clientY - rect.top) / rect.height;
         let closest = null;
         for (const handle of alignmentHandles()) {
-          const distance = Math.hypot(handle.point.x - x, handle.point.y - y);
-          if (distance < 0.045 && (!closest || distance < closest.distance)) {
+          const distance = Math.hypot(
+            (handle.point.x - x) * rect.width,
+            (handle.point.y - y) * rect.height,
+          );
+          if (distance < 22 && (!closest || distance < closest.distance)) {
             closest = { ...handle, distance };
           }
         }
+        if (closest) return closest;
+        const alignment = importDraft.alignment;
+        const guides = [
+          {
+            type: "dataTop",
+            from: alignmentPoint(0, alignment.dataTop),
+            to: alignmentPoint(1, alignment.dataTop),
+          },
+          {
+            type: "dataBottom",
+            from: alignmentPoint(0, alignment.dataBottom),
+            to: alignmentPoint(1, alignment.dataBottom),
+          },
+          {
+            type: "columnOne",
+            from: alignmentPoint(alignment.columnOne, alignment.dataTop),
+            to: alignmentPoint(alignment.columnOne, alignment.dataBottom),
+          },
+          {
+            type: "columnTwo",
+            from: alignmentPoint(alignment.columnTwo, alignment.dataTop),
+            to: alignmentPoint(alignment.columnTwo, alignment.dataBottom),
+          },
+        ];
+        for (const guide of guides) {
+          const distance = distanceToAlignmentSegment(
+            { x: x * rect.width, y: y * rect.height },
+            { x: guide.from.x * rect.width, y: guide.from.y * rect.height },
+            { x: guide.to.x * rect.width, y: guide.to.y * rect.height },
+          );
+          if (distance < 14 && (!closest || distance < closest.distance)) {
+            closest = { type: guide.type, distance };
+          }
+        }
         return closest;
+      }
+
+      function distanceToAlignmentSegment(point, start, end) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const lengthSquared = dx * dx + dy * dy;
+        if (!lengthSquared) return Math.hypot(point.x - start.x, point.y - start.y);
+        const ratio = Math.max(
+          0,
+          Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared),
+        );
+        return Math.hypot(
+          point.x - (start.x + ratio * dx),
+          point.y - (start.y + ratio * dy),
+        );
       }
 
       async function recognizeFreeformSheet() {
@@ -3850,32 +3902,50 @@
         const threshold = otsuThreshold(region.gray);
         const projection = new Uint32Array(region.height);
         for (let y = 0; y < region.height; y += 1) {
+          const histogram = new Uint32Array(256);
           for (let x = 0; x < region.width; x += 1) {
-            if (region.gray[y * region.width + x] < threshold - 4) projection[y] += 1;
+            histogram[Math.max(0, Math.min(255, Math.round(region.gray[y * region.width + x])))] += 1;
+          }
+          const backgroundTarget = region.width * 0.72;
+          let backgroundCount = 0;
+          let rowBackground = 255;
+          for (let value = 0; value < histogram.length; value += 1) {
+            backgroundCount += histogram[value];
+            if (backgroundCount >= backgroundTarget) {
+              rowBackground = value;
+              break;
+            }
+          }
+          const localInkThreshold = Math.min(threshold - 2, rowBackground - 26);
+          for (let x = 0; x < region.width; x += 1) {
+            if (region.gray[y * region.width + x] < localInkThreshold) projection[y] += 1;
           }
         }
         const activeThreshold = Math.max(2, Math.round(region.width * 0.007));
-        const raw = [];
-        let start = -1;
-        for (let y = 0; y <= projection.length; y += 1) {
-          if (y < projection.length && projection[y] >= activeThreshold) {
-            if (start < 0) start = y;
-          } else if (start >= 0) {
-            raw.push({ top: start, bottom: y - 1 });
-            start = -1;
+        const collectBands = (minimumInk) => {
+          const bands = [];
+          const inactiveGap = Math.max(2, Math.round(canvas.height * 0.002));
+          let start = -1;
+          let lastActive = -1;
+          for (let y = 0; y <= projection.length; y += 1) {
+            if (y < projection.length && projection[y] >= minimumInk) {
+              if (start < 0) start = y;
+              lastActive = y;
+            } else if (start >= 0 && (y - lastActive > inactiveGap || y === projection.length)) {
+              bands.push({ top: start, bottom: lastActive });
+              start = -1;
+              lastActive = -1;
+            }
           }
+          return bands
+            .filter((band) => band.bottom - band.top >= Math.max(4, canvas.height * 0.0025))
+            .filter((band) => band.bottom - band.top <= canvas.height * 0.052)
+            .slice(0, 40);
+        };
+        let filtered = collectBands(activeThreshold);
+        if (filtered.length < 2) {
+          filtered = collectBands(Math.max(1, Math.floor(activeThreshold * 0.55)));
         }
-        const mergeGap = Math.max(7, Math.round(canvas.height * 0.012));
-        const merged = [];
-        for (const band of raw) {
-          const previous = merged[merged.length - 1];
-          if (previous && band.top - previous.bottom <= mergeGap) previous.bottom = band.bottom;
-          else merged.push({ ...band });
-        }
-        const filtered = merged
-          .filter((band) => band.bottom - band.top >= Math.max(6, canvas.height * 0.004))
-          .filter((band) => band.bottom - band.top <= canvas.height * 0.075)
-          .slice(0, 40);
         const centers = filtered.map((band) => (band.top + band.bottom) / 2);
         const gaps = centers
           .slice(1)
@@ -6118,7 +6188,24 @@
       document.addEventListener("pointermove", (event) => {
         const target = importDraft.dragTarget;
         const canvas = document.getElementById("alignment-canvas");
-        if (!target || !canvas || target.pointerId !== event.pointerId) return;
+        if (!target || !canvas || target.pointerId !== event.pointerId) {
+          const hoveredCanvas = event.target.closest?.("#alignment-canvas");
+          if (hoveredCanvas && importDraft.alignment) {
+            const handle = hitAlignmentHandle(
+              hoveredCanvas,
+              event.clientX,
+              event.clientY,
+            );
+            hoveredCanvas.style.cursor = handle
+              ? handle.type.startsWith("data")
+                ? "row-resize"
+                : handle.type.startsWith("column")
+                  ? "col-resize"
+                  : "grab"
+              : "crosshair";
+          }
+          return;
+        }
         const rect = canvas.getBoundingClientRect();
         const x = Math.max(0.002, Math.min(0.998, (event.clientX - rect.left) / rect.width));
         const y = Math.max(0.002, Math.min(0.998, (event.clientY - rect.top) / rect.height));
@@ -6153,6 +6240,12 @@
       });
 
       document.addEventListener("pointerup", (event) => {
+        if (importDraft.dragTarget?.pointerId === event.pointerId) {
+          importDraft.dragTarget = null;
+        }
+      });
+
+      document.addEventListener("pointercancel", (event) => {
         if (importDraft.dragTarget?.pointerId === event.pointerId) {
           importDraft.dragTarget = null;
         }

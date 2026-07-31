@@ -96,3 +96,16 @@ test("supports selecting and batch downloading receipt images", async () => {
   assert.match(html, /downloadSelectedReceipts/);
   assert.match(html, /application\/zip/);
 });
+
+test("supports working single and batch receipt creation", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /保存并下载收据/);
+  assert.match(html, /批量开具租金收据/);
+  assert.match(html, /batch-receipt-form/);
+  assert.match(html, /批量开具并下载/);
+  assert.match(html, /createReceiptRecord/);
+  assert.match(html, /const meter = state\.meterRecords\.find/);
+  assert.match(html, /document\.addEventListener\("submit", async/);
+});

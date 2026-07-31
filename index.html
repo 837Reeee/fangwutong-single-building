@@ -525,6 +525,54 @@
         gap: 9px;
       }
 
+      .mode-switch {
+        display: inline-flex;
+        gap: 5px;
+        margin-bottom: 16px;
+        padding: 5px;
+        border: 1px solid var(--slate-200);
+        border-radius: 13px;
+        background: white;
+      }
+
+      .mode-switch .button {
+        min-height: 34px;
+        padding: 6px 14px;
+      }
+
+      .mode-switch .button[aria-selected="true"] {
+        background: var(--blue-50);
+        color: var(--blue-700);
+        box-shadow: inset 0 0 0 1px rgba(35, 104, 170, 0.1);
+      }
+
+      .batch-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin: 16px 0;
+      }
+
+      .batch-summary-item {
+        padding: 13px 14px;
+        border: 1px solid #d5e6f4;
+        border-radius: 12px;
+        background: var(--blue-50);
+      }
+
+      .batch-summary-item span {
+        display: block;
+        color: var(--slate-500);
+        font-size: 10px;
+      }
+
+      .batch-summary-item strong {
+        display: block;
+        margin-top: 4px;
+        color: var(--slate-800);
+        font-size: 16px;
+      }
+
       .button {
         display: inline-flex;
         min-height: 39px;
@@ -1520,6 +1568,10 @@
           gap: 9px;
         }
 
+        .batch-summary {
+          grid-template-columns: 1fr;
+        }
+
         .stat-card {
           padding: 15px;
         }
@@ -1885,6 +1937,16 @@
       let meterPeriodFilter = CURRENT_PERIOD;
       let receiptPeriodFilter = CURRENT_PERIOD;
       let selectedReceiptIds = new Set();
+      let receiptCreateMode = "single";
+      let batchReceiptDraft = {
+        period: CURRENT_PERIOD,
+        roomIds: new Set(),
+        paymentMethod: "微信",
+        receivedAt: toLocalDateInput(new Date()),
+        issuer: state.settings.payee,
+        payee: state.settings.payee,
+        note: "",
+      };
       let meterContext = { roomId: state.rooms[0]?.id || "", period: CURRENT_PERIOD };
       let receiptContext = { roomId: occupiedRooms()[0]?.id || "", period: CURRENT_PERIOD };
       let importDraft = {
@@ -3433,11 +3495,225 @@
         `;
       }
 
+      function receiptCreateModeSwitch() {
+        return `
+          <div class="mode-switch" role="group" aria-label="收据开具方式">
+            <button class="button" type="button" data-action="set-receipt-create-mode" data-mode="single" aria-selected="${receiptCreateMode === "single"}">单张开具</button>
+            <button class="button" type="button" data-action="set-receipt-create-mode" data-mode="batch" aria-selected="${receiptCreateMode === "batch"}">批量开具</button>
+          </div>
+        `;
+      }
+
+      function batchReceiptAmounts(room, period) {
+        const meter = state.meterRecords.find(
+          (record) => record.roomId === room.id && record.period === period,
+        );
+        const amounts = {
+          rent: Number(room.monthlyRent) || 0,
+          waterCharge: Number(meter?.waterCharge) || 0,
+          electricCharge: Number(meter?.electricCharge) || 0,
+          sanitationAmount: 0,
+          tvAmount: 0,
+          internetAmount: 0,
+          managementAmount: 0,
+          otherAmount: 0,
+        };
+        return {
+          meter,
+          amounts,
+          total: Number(
+            Object.values(amounts).reduce((sum, value) => sum + value, 0).toFixed(2),
+          ),
+        };
+      }
+
+      function initializeBatchReceiptSelection(period = batchReceiptDraft.period) {
+        batchReceiptDraft.period = period || CURRENT_PERIOD;
+        batchReceiptDraft.roomIds = new Set(
+          occupiedRooms()
+            .filter(
+              (room) =>
+                !state.receipts.some(
+                  (receipt) =>
+                    receipt.roomId === room.id && receipt.period === batchReceiptDraft.period,
+                ),
+            )
+            .map((room) => room.id),
+        );
+      }
+
+      function renderBatchReceiptCreate(rooms) {
+        const existingIds = new Set(
+          state.receipts
+            .filter((receipt) => receipt.period === batchReceiptDraft.period)
+            .map((receipt) => receipt.roomId),
+        );
+        const eligibleIds = new Set(
+          rooms.filter((room) => !existingIds.has(room.id)).map((room) => room.id),
+        );
+        batchReceiptDraft.roomIds = new Set(
+          [...batchReceiptDraft.roomIds].filter((roomId) => eligibleIds.has(roomId)),
+        );
+        const selectedRooms = rooms.filter((room) => batchReceiptDraft.roomIds.has(room.id));
+        const selectedTotal = selectedRooms.reduce(
+          (sum, room) => sum + batchReceiptAmounts(room, batchReceiptDraft.period).total,
+          0,
+        );
+        const missingMeterCount = selectedRooms.filter(
+          (room) => !batchReceiptAmounts(room, batchReceiptDraft.period).meter,
+        ).length;
+        const allEligibleSelected =
+          eligibleIds.size > 0 &&
+          [...eligibleIds].every((roomId) => batchReceiptDraft.roomIds.has(roomId));
+
+        return `
+          ${receiptCreateModeSwitch()}
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">批量开具租金收据</h2>
+                <p class="panel-subtitle">统一生成所选在租房间的收据，并打包下载为 ZIP</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <form id="batch-receipt-form" novalidate>
+                <div class="toolbar">
+                  <div class="toolbar-group">
+                    <label class="field" style="min-width:205px">
+                      <span class="field-label">账期</span>
+                      <input class="field-input" id="batch-receipt-period" name="period" type="month" value="${batchReceiptDraft.period}" required />
+                    </label>
+                  </div>
+                  <div class="toolbar-group">
+                    <label class="toolbar-group" for="batch-receipt-select-all">
+                      <input class="selection-check" id="batch-receipt-select-all" type="checkbox" ${allEligibleSelected ? "checked" : ""} ${eligibleIds.size ? "" : "disabled"} />
+                      <span>全选可开具房间</span>
+                    </label>
+                  </div>
+                </div>
+
+                ${eligibleIds.size ? "" : `<div class="notice"><strong>提示：</strong><span>${formatPeriod(batchReceiptDraft.period)}的在租房间均已开具收据，可前往收据记录批量下载。</span></div>`}
+
+                <div class="data-table-wrap">
+                  <table class="data-table">
+                    <thead><tr><th class="receipt-select-cell">选择</th><th>房间</th><th>租客</th><th>月租</th><th>水费</th><th>电费</th><th>合计</th><th>状态</th></tr></thead>
+                    <tbody>
+                      ${rooms
+                        .map((room) => {
+                          const existing = existingIds.has(room.id);
+                          const { meter, amounts, total } = batchReceiptAmounts(
+                            room,
+                            batchReceiptDraft.period,
+                          );
+                          return `
+                            <tr>
+                              <td class="receipt-select-cell" data-label="选择"><input class="selection-check" type="checkbox" data-batch-receipt-room="${room.id}" ${batchReceiptDraft.roomIds.has(room.id) ? "checked" : ""} ${existing ? "disabled" : ""} aria-label="选择房间 ${escapeHtml(room.number)}" /></td>
+                              <td data-label="房间"><span class="table-primary">${escapeHtml(room.number)}</span></td>
+                              <td data-label="租客">${escapeHtml(room.tenantName)}</td>
+                              <td data-label="月租">¥${formatMoney(amounts.rent)}</td>
+                              <td data-label="水费">¥${formatMoney(amounts.waterCharge)}</td>
+                              <td data-label="电费">¥${formatMoney(amounts.electricCharge)}</td>
+                              <td data-label="合计"><strong>¥${formatMoney(total)}</strong></td>
+                              <td data-label="状态">${existing ? `<span class="status status-vacant">已开具</span>` : meter ? `<span class="status status-occupied">可开具</span>` : `<span class="status status-vacant">无水电记录</span>`}</td>
+                            </tr>
+                          `;
+                        })
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="batch-summary" aria-live="polite">
+                  <div class="batch-summary-item"><span>已选择</span><strong id="batch-receipt-count">${selectedRooms.length} 间</strong></div>
+                  <div class="batch-summary-item"><span>预计合计</span><strong id="batch-receipt-total">¥${formatMoney(selectedTotal)}</strong></div>
+                  <div class="batch-summary-item"><span>无水电记录</span><strong id="batch-receipt-missing-meter">${missingMeterCount} 间</strong></div>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span class="field-label">支付方式</span>
+                    <select class="field-select" name="paymentMethod">
+                      ${["微信", "支付宝", "银行转账", "现金", "其他"].map((method) => `<option ${batchReceiptDraft.paymentMethod === method ? "selected" : ""}>${method}</option>`).join("")}
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field-label">收款日期</span>
+                    <input class="field-input" name="receivedAt" type="date" value="${batchReceiptDraft.receivedAt}" required />
+                  </label>
+                  <label class="field">
+                    <span class="field-label">开票人</span>
+                    <input class="field-input" name="issuer" value="${escapeHtml(batchReceiptDraft.issuer)}" required />
+                  </label>
+                  <label class="field">
+                    <span class="field-label">收款人</span>
+                    <input class="field-input" name="payee" value="${escapeHtml(batchReceiptDraft.payee)}" required />
+                  </label>
+                  <label class="field full">
+                    <span class="field-label">统一备注</span>
+                    <textarea class="field-textarea" name="note" maxlength="200" placeholder="可填写统一的付款备注">${escapeHtml(batchReceiptDraft.note)}</textarea>
+                  </label>
+                </div>
+                <p class="form-error" id="batch-receipt-form-error" role="alert"></p>
+                <div class="form-actions">
+                  <button class="button button-primary" id="batch-receipt-submit" type="submit" ${selectedRooms.length ? "" : "disabled"}>批量开具并下载（${selectedRooms.length}）</button>
+                </div>
+              </form>
+            </div>
+          </section>
+        `;
+      }
+
+      function captureBatchReceiptDraft(form = document.getElementById("batch-receipt-form")) {
+        if (!form) return;
+        const data = new FormData(form);
+        batchReceiptDraft.paymentMethod = String(data.get("paymentMethod") || "微信");
+        batchReceiptDraft.receivedAt =
+          String(data.get("receivedAt") || "") || toLocalDateInput(new Date());
+        batchReceiptDraft.issuer = String(data.get("issuer") || "").trim();
+        batchReceiptDraft.payee = String(data.get("payee") || "").trim();
+        batchReceiptDraft.note = String(data.get("note") || "").trim();
+      }
+
+      function updateBatchReceiptSelectionSummary() {
+        const selectedRooms = occupiedRooms().filter((room) =>
+          batchReceiptDraft.roomIds.has(room.id),
+        );
+        const selectedTotal = selectedRooms.reduce(
+          (sum, room) => sum + batchReceiptAmounts(room, batchReceiptDraft.period).total,
+          0,
+        );
+        const missingMeter = selectedRooms.filter(
+          (room) => !batchReceiptAmounts(room, batchReceiptDraft.period).meter,
+        ).length;
+        const eligibleInputs = [
+          ...document.querySelectorAll("[data-batch-receipt-room]:not(:disabled)"),
+        ];
+        const selectAll = document.getElementById("batch-receipt-select-all");
+        if (selectAll) {
+          selectAll.checked =
+            eligibleInputs.length > 0 && eligibleInputs.every((input) => input.checked);
+          selectAll.indeterminate =
+            eligibleInputs.some((input) => input.checked) && !selectAll.checked;
+        }
+        const count = document.getElementById("batch-receipt-count");
+        const total = document.getElementById("batch-receipt-total");
+        const missing = document.getElementById("batch-receipt-missing-meter");
+        const submit = document.getElementById("batch-receipt-submit");
+        if (count) count.textContent = `${selectedRooms.length} 间`;
+        if (total) total.textContent = `¥${formatMoney(selectedTotal)}`;
+        if (missing) missing.textContent = `${missingMeter} 间`;
+        if (submit) {
+          submit.disabled = selectedRooms.length === 0;
+          submit.textContent = `批量开具并下载（${selectedRooms.length}）`;
+        }
+      }
+
       function renderReceiptCreate() {
         const rooms = occupiedRooms().sort((a, b) =>
           String(a.number).localeCompare(String(b.number), "zh-CN", { numeric: true }),
         );
         if (!rooms.length) return emptyState("据", "暂无在租房间", "请先在房间管理中为房间登记入住。", "前往在租房间", "go-occupied");
+        if (receiptCreateMode === "batch") return renderBatchReceiptCreate(rooms);
         if (!receiptContext.roomId || !rooms.some((room) => room.id === receiptContext.roomId)) {
           receiptContext.roomId = rooms[0].id;
         }
@@ -3455,6 +3731,7 @@
         const waterCharge = meter?.waterCharge ?? 0;
         const electricCharge = meter?.electricCharge ?? 0;
         return `
+          ${receiptCreateModeSwitch()}
           <div class="split-layout">
             <section class="panel">
               <div class="panel-header">
@@ -3843,6 +4120,56 @@
             return Math.max(highest, Number.isFinite(sequence) ? sequence : 0);
           }, 0);
         return `${prefix}${String(max + 1).padStart(3, "0")}`;
+      }
+
+      function receiptMeterSnapshot(meter) {
+        if (!meter) return null;
+        return {
+          inputMode: meter.inputMode,
+          prevWater: meter.prevWater ?? null,
+          currentWater: meter.currentWater ?? null,
+          waterUsage: meter.waterUsage,
+          waterRate: meter.waterRate,
+          prevElectric: meter.prevElectric ?? null,
+          currentElectric: meter.currentElectric ?? null,
+          electricUsage: meter.electricUsage,
+          electricRate: meter.electricRate,
+        };
+      }
+
+      function createReceiptRecord({
+        room,
+        period,
+        amounts,
+        paymentMethod,
+        receivedAt,
+        issuer,
+        payee,
+        note,
+        tenantName = room.tenantName,
+        meter = null,
+      }) {
+        return {
+          id: makeId("receipt"),
+          serial: nextReceiptSerial(period),
+          roomId: room.id,
+          roomNumber: room.number,
+          tenantName,
+          period,
+          ...amounts,
+          total: Number(
+            Object.values(amounts).reduce((sum, value) => sum + Number(value || 0), 0).toFixed(2),
+          ),
+          paymentMethod,
+          receivedAt,
+          issuer,
+          payee,
+          note,
+          buildingName: state.settings.buildingName,
+          receiptTitle: state.settings.receiptTitle,
+          meterSnapshot: receiptMeterSnapshot(meter),
+          createdAt: new Date().toISOString(),
+        };
       }
 
       function receiptSerialDisplay(serial) {
@@ -4301,6 +4628,21 @@
         return new Blob([...localParts, ...centralParts, end], { type: "application/zip" });
       }
 
+      async function downloadReceiptArchive(receipts, periodName) {
+        const entries = [];
+        for (const receipt of receipts) {
+          const blob = await createReceiptImageBlob(receipt);
+          entries.push({
+            name: safeDownloadName(`${receipt.serial}-${receipt.roomNumber}.png`),
+            bytes: new Uint8Array(await blob.arrayBuffer()),
+          });
+        }
+        triggerBlobDownload(
+          buildStoredZip(entries),
+          `${state.settings.buildingName}-${periodName}-收据-${receipts.length}张.zip`,
+        );
+      }
+
       async function downloadSelectedReceipts() {
         const receipts = state.receipts
           .filter((receipt) => selectedReceiptIds.has(receipt.id))
@@ -4311,19 +4653,7 @@
         }
         showToast(`正在生成 ${receipts.length} 张收据，请稍候`);
         try {
-          const entries = [];
-          for (const receipt of receipts) {
-            const blob = await createReceiptImageBlob(receipt);
-            entries.push({
-              name: safeDownloadName(`${receipt.serial}-${receipt.roomNumber}.png`),
-              bytes: new Uint8Array(await blob.arrayBuffer()),
-            });
-          }
-          const periodName = receiptPeriodFilter || "全部账期";
-          triggerBlobDownload(
-            buildStoredZip(entries),
-            `${state.settings.buildingName}-${periodName}-收据-${receipts.length}张.zip`,
-          );
+          await downloadReceiptArchive(receipts, receiptPeriodFilter || "全部账期");
           showToast(`已打包下载 ${receipts.length} 张收据`);
         } catch (error) {
           console.error(error);
@@ -4370,7 +4700,15 @@
         if (!actionButton) return;
         const action = actionButton.dataset.action;
 
-        if (action === "download-meter-template") {
+        if (action === "set-receipt-create-mode") {
+          receiptCreateMode = actionButton.dataset.mode === "batch" ? "batch" : "single";
+          if (receiptCreateMode === "batch") {
+            batchReceiptDraft.issuer ||= state.settings.payee;
+            batchReceiptDraft.payee ||= state.settings.payee;
+            initializeBatchReceiptSelection(batchReceiptDraft.period);
+          }
+          renderView();
+        } else if (action === "download-meter-template") {
           downloadTemplate();
         } else if (action === "print-meter-template") {
           openTemplatePrint();
@@ -4454,6 +4792,17 @@
             state = createDefaultState();
             meterContext = { roomId: state.rooms[0].id, period: CURRENT_PERIOD };
             receiptContext = { roomId: "", period: CURRENT_PERIOD };
+            receiptCreateMode = "single";
+            selectedReceiptIds.clear();
+            batchReceiptDraft = {
+              period: CURRENT_PERIOD,
+              roomIds: new Set(),
+              paymentMethod: "微信",
+              receivedAt: toLocalDateInput(new Date()),
+              issuer: state.settings.payee,
+              payee: state.settings.payee,
+              note: "",
+            };
             importDraft = {
               period: CURRENT_PERIOD,
               stage: "idle",
@@ -4556,9 +4905,31 @@
           else selectedReceiptIds.delete(receiptId);
           renderView();
         }
+        if (event.target.id === "batch-receipt-period") {
+          captureBatchReceiptDraft();
+          initializeBatchReceiptSelection(event.target.value || CURRENT_PERIOD);
+          renderView();
+        }
+        if (event.target.id === "batch-receipt-select-all") {
+          const roomInputs = [
+            ...document.querySelectorAll("[data-batch-receipt-room]:not(:disabled)"),
+          ];
+          roomInputs.forEach((input) => {
+            input.checked = event.target.checked;
+            if (input.checked) batchReceiptDraft.roomIds.add(input.dataset.batchReceiptRoom);
+            else batchReceiptDraft.roomIds.delete(input.dataset.batchReceiptRoom);
+          });
+          updateBatchReceiptSelectionSummary();
+        }
+        if (event.target.matches("[data-batch-receipt-room]")) {
+          const roomId = event.target.dataset.batchReceiptRoom;
+          if (event.target.checked) batchReceiptDraft.roomIds.add(roomId);
+          else batchReceiptDraft.roomIds.delete(roomId);
+          updateBatchReceiptSelectionSummary();
+        }
       });
 
-      document.addEventListener("submit", (event) => {
+      document.addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = event.target;
 
@@ -4738,42 +5109,104 @@
             return;
           }
           const room = state.rooms.find((candidate) => candidate.id === roomId);
-          const receipt = {
-            id: makeId("receipt"),
-            serial: nextReceiptSerial(period),
-            roomId,
-            roomNumber: room.number,
-            tenantName: String(data.get("tenantName")).trim(),
+          if (!room) {
+            error.textContent = "房间不存在，请重新选择后再试。";
+            return;
+          }
+          const meter = state.meterRecords.find(
+            (record) => record.roomId === roomId && record.period === period,
+          );
+          const receipt = createReceiptRecord({
+            room,
             period,
-            ...amounts,
-            total: Number(Object.values(amounts).reduce((sum, value) => sum + value, 0).toFixed(2)),
+            amounts,
             paymentMethod: String(data.get("paymentMethod")),
             receivedAt: String(data.get("receivedAt")),
             issuer: String(data.get("issuer")).trim(),
             payee: String(data.get("payee")).trim(),
             note: String(data.get("note") || "").trim(),
-            buildingName: state.settings.buildingName,
-            receiptTitle: state.settings.receiptTitle,
-            meterSnapshot: meter
-              ? {
-                  inputMode: meter.inputMode,
-                  prevWater: meter.prevWater ?? null,
-                  currentWater: meter.currentWater ?? null,
-                  waterUsage: meter.waterUsage,
-                  waterRate: meter.waterRate,
-                  prevElectric: meter.prevElectric ?? null,
-                  currentElectric: meter.currentElectric ?? null,
-                  electricUsage: meter.electricUsage,
-                  electricRate: meter.electricRate,
-                }
-              : null,
-            createdAt: new Date().toISOString(),
-          };
+            tenantName: String(data.get("tenantName")).trim(),
+            meter,
+          });
           state.receipts.push(receipt);
           if (saveState("收据已保存，正在生成图片")) {
-            downloadReceiptImage(receipt);
+            await downloadReceiptImage(receipt);
+            selectedReceiptIds = new Set([receipt.id]);
+            receiptPeriodFilter = period;
             navigate("receipt-records");
           }
+        }
+
+        if (form.id === "batch-receipt-form") {
+          captureBatchReceiptDraft(form);
+          const period = String(new FormData(form).get("period") || batchReceiptDraft.period);
+          const error = document.getElementById("batch-receipt-form-error");
+          const selectedRooms = occupiedRooms()
+            .filter((room) => batchReceiptDraft.roomIds.has(room.id))
+            .filter(
+              (room) =>
+                !state.receipts.some(
+                  (receipt) => receipt.roomId === room.id && receipt.period === period,
+                ),
+            )
+            .sort((a, b) =>
+              String(a.number).localeCompare(String(b.number), "zh-CN", { numeric: true }),
+            );
+          if (
+            !period ||
+            !selectedRooms.length ||
+            !batchReceiptDraft.receivedAt ||
+            !batchReceiptDraft.issuer ||
+            !batchReceiptDraft.payee
+          ) {
+            error.textContent = "请选择至少一个房间，并完整填写收款日期、开票人和收款人。";
+            return;
+          }
+          if (
+            !(await askConfirm(
+              `确定为 ${selectedRooms.length} 个房间批量开具 ${formatPeriod(period)} 收据吗？开具后将保存记录并下载压缩包。`,
+              `开具 ${selectedRooms.length} 张`,
+            ))
+          ) {
+            return;
+          }
+
+          const receiptCountBefore = state.receipts.length;
+          const createdReceipts = [];
+          selectedRooms.forEach((room) => {
+            const { meter, amounts } = batchReceiptAmounts(room, period);
+            const receipt = createReceiptRecord({
+              room,
+              period,
+              amounts,
+              paymentMethod: batchReceiptDraft.paymentMethod,
+              receivedAt: batchReceiptDraft.receivedAt,
+              issuer: batchReceiptDraft.issuer,
+              payee: batchReceiptDraft.payee,
+              note: batchReceiptDraft.note,
+              meter,
+            });
+            state.receipts.push(receipt);
+            createdReceipts.push(receipt);
+          });
+
+          if (!saveState(`已批量开具 ${createdReceipts.length} 张收据，正在打包下载`)) {
+            state.receipts.splice(receiptCountBefore);
+            error.textContent = "收据保存失败，请检查浏览器存储空间后重试。";
+            return;
+          }
+
+          try {
+            await downloadReceiptArchive(createdReceipts, period);
+            showToast(`已开具并打包下载 ${createdReceipts.length} 张收据`);
+          } catch (downloadError) {
+            console.error(downloadError);
+            showToast("收据已保存，但压缩包生成失败，可前往收据记录重新下载");
+          }
+          selectedReceiptIds = new Set(createdReceipts.map((receipt) => receipt.id));
+          receiptPeriodFilter = period;
+          batchReceiptDraft.roomIds.clear();
+          navigate("receipt-records");
         }
 
         if (form.id === "receipt-settings-form") {

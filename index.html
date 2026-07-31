@@ -3606,12 +3606,128 @@
             y: Math.max(0.005, Math.min(0.995, point.y)),
           }));
         }
+        const guides = detectFreeformInkGuides(sample, pixels, corners);
         return {
           corners,
-          dataTop: 0.09,
-          dataBottom: 0.92,
-          columnOne: 0.27,
-          columnTwo: 0.54,
+          dataTop: guides?.dataTop ?? 0.06,
+          dataBottom: guides?.dataBottom ?? 0.9,
+          columnOne: guides?.columnOne ?? 0.22,
+          columnTwo: guides?.columnTwo ?? 0.42,
+        };
+      }
+
+      function detectFreeformInkGuides(canvas, pixels, corners) {
+        const width = canvas.width;
+        const height = canvas.height;
+        const paperLeft = Math.max(
+          0,
+          Math.round(((corners[0].x + corners[3].x) / 2) * width),
+        );
+        const paperRight = Math.min(
+          width - 1,
+          Math.round(((corners[1].x + corners[2].x) / 2) * width),
+        );
+        const paperTop = Math.max(
+          0,
+          Math.round(((corners[0].y + corners[1].y) / 2) * height),
+        );
+        const paperBottom = Math.min(
+          height - 1,
+          Math.round(((corners[2].y + corners[3].y) / 2) * height),
+        );
+        const paperWidth = paperRight - paperLeft;
+        const paperHeight = paperBottom - paperTop;
+        if (paperWidth < 80 || paperHeight < 100) return null;
+        const scanLeft = paperLeft + Math.round(paperWidth * 0.025);
+        const scanRight = paperRight - Math.round(paperWidth * 0.04);
+        const scanTop = paperTop + Math.round(paperHeight * 0.018);
+        const scanBottom = paperBottom - Math.round(paperHeight * 0.04);
+        const xProjection = new Uint16Array(width);
+        const isDark = (x, y) => {
+          const offset = (y * width + x) * 4;
+          return (
+            pixels[offset] * 0.299 +
+              pixels[offset + 1] * 0.587 +
+              pixels[offset + 2] * 0.114 <
+            148
+          );
+        };
+        for (let y = scanTop; y <= scanBottom; y += 1) {
+          for (let x = scanLeft; x <= scanRight; x += 1) {
+            if (!isDark(x, y)) continue;
+            xProjection[x] += 1;
+          }
+        }
+        const smoothed = new Uint16Array(width);
+        for (let x = scanLeft; x <= scanRight; x += 1) {
+          for (let offset = -1; offset <= 1; offset += 1) {
+            smoothed[x] += xProjection[Math.max(scanLeft, Math.min(scanRight, x + offset))];
+          }
+        }
+        const minimumInk = Math.max(2, Math.round(paperHeight * 0.009));
+        const rawRuns = [];
+        const bridgeGap = Math.max(1, Math.round(paperWidth * 0.012));
+        let start = -1;
+        let lastActive = -1;
+        for (let x = scanLeft; x <= scanRight + 1; x += 1) {
+          if (x <= scanRight && smoothed[x] >= minimumInk) {
+            if (start < 0) start = x;
+            lastActive = x;
+          } else if (start >= 0 && (x - lastActive > bridgeGap || x > scanRight)) {
+            rawRuns.push({ left: start, right: lastActive });
+            start = -1;
+            lastActive = -1;
+          }
+        }
+        const mergeGap = Math.max(4, Math.round(paperWidth * 0.04));
+        const clusters = [];
+        rawRuns.forEach((run) => {
+          const previous = clusters[clusters.length - 1];
+          if (previous && run.left - previous.right <= mergeGap) {
+            previous.right = run.right;
+          } else {
+            clusters.push({ ...run });
+          }
+        });
+        clusters.forEach((cluster) => {
+          cluster.ink = 0;
+          for (let x = cluster.left; x <= cluster.right; x += 1) {
+            cluster.ink += xProjection[x];
+          }
+        });
+        const columns = clusters
+          .filter(
+            (cluster) =>
+              cluster.right - cluster.left >= 2 &&
+              cluster.ink >= minimumInk * 3 &&
+              cluster.left < paperLeft + paperWidth * 0.82,
+          )
+          .sort((a, b) => b.ink - a.ink)
+          .slice(0, 3)
+          .sort((a, b) => a.left - b.left);
+        if (columns.length !== 3) return null;
+        const firstBoundary = (columns[0].right + columns[1].left) / 2;
+        const secondBoundary = (columns[1].right + columns[2].left) / 2;
+        const toRatio = (position, origin, size) => (position - origin) / Math.max(1, size);
+        let firstInkRow = scanBottom;
+        let lastInkRow = scanTop;
+        const rowInkThreshold = Math.max(1, Math.round((columns[2].right - columns[0].left) * 0.008));
+        for (let y = scanTop; y <= scanBottom; y += 1) {
+          let rowInk = 0;
+          for (let x = columns[0].left; x <= columns[2].right; x += 1) {
+            if (isDark(x, y)) rowInk += 1;
+          }
+          if (rowInk >= rowInkThreshold) {
+            firstInkRow = Math.min(firstInkRow, y);
+            lastInkRow = Math.max(lastInkRow, y);
+          }
+        }
+        const rowPadding = paperHeight * 0.018;
+        return {
+          columnOne: Math.max(0.08, Math.min(0.78, toRatio(firstBoundary, paperLeft, paperWidth))),
+          columnTwo: Math.max(0.16, Math.min(0.9, toRatio(secondBoundary, paperLeft, paperWidth))),
+          dataTop: Math.max(0.005, toRatio(firstInkRow - rowPadding, paperTop, paperHeight)),
+          dataBottom: Math.min(0.995, toRatio(lastInkRow + rowPadding, paperTop, paperHeight)),
         };
       }
 
@@ -3849,7 +3965,6 @@
               prevWater: { value: "", confidence: NaN, image: "", needsReview: false },
               prevElectric: { value: "", confidence: NaN, image: "", needsReview: false },
             };
-            applyPreviousReadingToRow(row);
             rows.push(row);
             updateImportProgress(
               30 + ((index + 1) / bands.length) * 66,
@@ -3857,6 +3972,8 @@
             );
             await nextFrame();
           }
+          applyRoomSequenceCorrection(rows);
+          rows.forEach((row) => applyPreviousReadingToRow(row));
           importDraft.rows = rows;
           importDraft.stage = "review";
           importDraft.progress = 100;
@@ -4078,26 +4195,54 @@
         const width = canvas.width * (endRatio - startRatio) - margin * 2;
         const region = grayRegion(canvas, x, band.top, width, band.bottom - band.top);
         const threshold = otsuThreshold(region.gray);
+        const columnThresholds = new Float32Array(region.width);
+        for (let px = 0; px < region.width; px += 1) {
+          const histogram = new Uint16Array(256);
+          for (let py = 0; py < region.height; py += 1) {
+            histogram[Math.max(0, Math.min(255, Math.round(region.gray[py * region.width + px])))] += 1;
+          }
+          const backgroundTarget = region.height * 0.7;
+          let counted = 0;
+          let background = 255;
+          for (let value = 0; value < histogram.length; value += 1) {
+            counted += histogram[value];
+            if (counted >= backgroundTarget) {
+              background = value;
+              break;
+            }
+          }
+          columnThresholds[px] = Math.max(62, Math.min(threshold - 3, background - 25));
+        }
+        const isInk = (px, py) =>
+          region.gray[py * region.width + px] < columnThresholds[px];
         const projection = new Uint32Array(region.width);
         const bounds = [];
         let minY = region.height;
         let maxY = -1;
         for (let px = 0; px < region.width; px += 1) {
           for (let py = 0; py < region.height; py += 1) {
-            if (region.gray[py * region.width + px] < threshold - 3) {
+            if (isInk(px, py)) {
               projection[px] += 1;
               minY = Math.min(minY, py);
               maxY = Math.max(maxY, py);
             }
           }
         }
+        const minimumColumnInk = Math.max(1, Math.round(region.height * 0.025));
+        const bridgeGap = Math.max(1, Math.round(region.height * 0.045));
         let start = -1;
+        let lastActive = -1;
         for (let px = 0; px <= projection.length; px += 1) {
-          if (px < projection.length && projection[px] > 0) {
+          if (px < projection.length && projection[px] >= minimumColumnInk) {
             if (start < 0) start = px;
-          } else if (start >= 0) {
-            bounds.push({ left: start, right: px - 1 });
+            lastActive = px;
+          } else if (
+            start >= 0 &&
+            (px - lastActive > bridgeGap || px === projection.length)
+          ) {
+            bounds.push({ left: start, right: lastActive });
             start = -1;
+            lastActive = -1;
           }
         }
         const fieldCanvas = document.createElement("canvas");
@@ -4123,7 +4268,7 @@
           };
         }
         const groups = [];
-        const maxDigitWidth = Math.max(12, (maxY - minY + 1) * 0.75);
+        const maxDigitWidth = Math.max(12, (maxY - minY + 1) * 0.62);
         for (const bound of bounds) {
           const runWidth = bound.right - bound.left + 1;
           if (runWidth > maxDigitWidth * 1.25) {
@@ -4147,7 +4292,7 @@
           let ink = 0;
           for (let px = group.left; px <= group.right; px += 1) {
             for (let py = 0; py < region.height; py += 1) {
-              if (region.gray[py * region.width + px] < threshold - 3) {
+              if (isInk(px, py)) {
                 groupMinY = Math.min(groupMinY, py);
                 groupMaxY = Math.max(groupMaxY, py);
                 ink += 1;
@@ -4236,6 +4381,46 @@
           }
         }
         return rows[left.length][right.length];
+      }
+
+      function applyRoomSequenceCorrection(rows) {
+        const orderedRooms = [...state.rooms].sort(
+          (left, right) =>
+            Number(left.floor) - Number(right.floor) ||
+            String(left.number).localeCompare(String(right.number), "zh-CN", { numeric: true }),
+        );
+        if (rows.length < 4 || rows.length > orderedRooms.length) return false;
+        const recognized = rows.filter((row) => row.roomNumber.value).length;
+        if (recognized < Math.ceil(rows.length * 0.6)) return false;
+        const windows = [];
+        for (let start = 0; start <= orderedRooms.length - rows.length; start += 1) {
+          let score = 0;
+          for (let index = 0; index < rows.length; index += 1) {
+            const observed = String(rows[index].roomNumber.value || "");
+            const expected = String(orderedRooms[start + index].number);
+            score += observed ? Math.min(3, editDistance(expected, observed)) : 1.5;
+          }
+          windows.push({ start, score });
+        }
+        windows.sort((left, right) => left.score - right.score);
+        const best = windows[0];
+        const runnerUp = windows[1];
+        if (
+          !best ||
+          best.score / rows.length > 1 ||
+          (runnerUp && runnerUp.score - best.score < Math.max(2, rows.length * 0.1))
+        ) {
+          return false;
+        }
+        rows.forEach((row, index) => {
+          const expected = String(orderedRooms[best.start + index].number);
+          if (row.roomNumber.value !== expected) {
+            row.roomNumber.value = expected;
+            row.roomNumber.needsReview = true;
+            row.roomNumber.sequenceCorrected = true;
+          }
+        });
+        return true;
       }
 
       async function recognizeMeterSheet(file) {

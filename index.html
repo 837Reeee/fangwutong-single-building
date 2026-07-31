@@ -1884,7 +1884,7 @@
             buildingName: "幸福公寓",
             waterRate: 3.5,
             electricRate: 0.8,
-            receiptTitle: "租金收款收据",
+            receiptTitle: "房租、水、电费（专用）收据",
             payee: "房屋管理员",
           },
           rooms,
@@ -1912,6 +1912,9 @@
                 : [],
               receipts: Array.isArray(saved.receipts) ? saved.receipts : [],
             };
+            if (migrated.settings.receiptTitle === "租金收款收据") {
+              migrated.settings.receiptTitle = "房租、水、电费（专用）收据";
+            }
             localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
             return migrated;
           }
@@ -3452,7 +3455,23 @@
                       <input class="field-input receipt-amount" id="receipt-electric" name="electricCharge" type="number" min="0" step="0.01" value="${Number(electricCharge).toFixed(2)}" required />
                     </label>
                     <label class="field">
-                      <span class="field-label">其他费用（元）</span>
+                      <span class="field-label">卫生费（元）</span>
+                      <input class="field-input receipt-amount" id="receipt-sanitation" name="sanitationAmount" type="number" min="0" step="0.01" value="0.00" required />
+                    </label>
+                    <label class="field">
+                      <span class="field-label">电视费（元）</span>
+                      <input class="field-input receipt-amount" id="receipt-tv" name="tvAmount" type="number" min="0" step="0.01" value="0.00" required />
+                    </label>
+                    <label class="field">
+                      <span class="field-label">网费（元）</span>
+                      <input class="field-input receipt-amount" id="receipt-internet" name="internetAmount" type="number" min="0" step="0.01" value="0.00" required />
+                    </label>
+                    <label class="field">
+                      <span class="field-label">管理费（元）</span>
+                      <input class="field-input receipt-amount" id="receipt-management" name="managementAmount" type="number" min="0" step="0.01" value="0.00" required />
+                    </label>
+                    <label class="field">
+                      <span class="field-label">其它费用（元）</span>
                       <input class="field-input receipt-amount" id="receipt-other" name="otherAmount" type="number" min="0" step="0.01" value="0.00" required />
                     </label>
                     <label class="field">
@@ -3468,6 +3487,10 @@
                     <label class="field">
                       <span class="field-label">收款日期</span>
                       <input class="field-input" name="receivedAt" type="date" value="${toLocalDateInput(new Date())}" required />
+                    </label>
+                    <label class="field">
+                      <span class="field-label">开票人</span>
+                      <input class="field-input" name="issuer" value="${escapeHtml(state.settings.payee)}" required />
                     </label>
                     <label class="field">
                       <span class="field-label">收款人</span>
@@ -3494,7 +3517,7 @@
               </div>
               <div class="panel-body">
                 <div class="calc-box" id="receipt-calculation">
-                  ${receiptCalculationMarkup(room.monthlyRent, waterCharge, electricCharge, 0)}
+                  ${receiptCalculationMarkup(room.monthlyRent, waterCharge, electricCharge, 0, 0, 0, 0, 0)}
                 </div>
               </div>
             </aside>
@@ -3502,16 +3525,30 @@
         `;
       }
 
-      function receiptCalculationMarkup(rent, water, electric, other) {
-        const total = [rent, water, electric, other].reduce(
+      function receiptCalculationMarkup(
+        rent,
+        water,
+        electric,
+        sanitation,
+        tv,
+        internet,
+        management,
+        other,
+      ) {
+        const additional = [sanitation, tv, internet, management, other].reduce(
           (sum, value) => sum + Math.max(0, Number(value) || 0),
           0,
         );
+        const total =
+          [rent, water, electric].reduce(
+            (sum, value) => sum + Math.max(0, Number(value) || 0),
+            0,
+          ) + additional;
         return `
           <div class="calc-row"><span>月租</span><strong>¥${formatMoney(rent)}</strong></div>
           <div class="calc-row"><span>水费</span><strong>¥${formatMoney(water)}</strong></div>
           <div class="calc-row"><span>电费</span><strong>¥${formatMoney(electric)}</strong></div>
-          <div class="calc-row"><span>其他费用</span><strong>¥${formatMoney(other)}</strong></div>
+          <div class="calc-row"><span>其它费用合计</span><strong>¥${formatMoney(additional)}</strong></div>
           <div class="calc-row total"><span>应收合计</span><strong>¥${formatMoney(total)}</strong></div>
         `;
       }
@@ -3734,6 +3771,10 @@
             document.getElementById("receipt-rent")?.value || 0,
             document.getElementById("receipt-water")?.value || 0,
             document.getElementById("receipt-electric")?.value || 0,
+            document.getElementById("receipt-sanitation")?.value || 0,
+            document.getElementById("receipt-tv")?.value || 0,
+            document.getElementById("receipt-internet")?.value || 0,
+            document.getElementById("receipt-management")?.value || 0,
             document.getElementById("receipt-other")?.value || 0,
           );
         }
@@ -3750,90 +3791,353 @@
         return `${prefix}${String(max + 1).padStart(3, "0")}`;
       }
 
+      function receiptSerialDisplay(serial) {
+        const sequence = String(serial || "").split("-").pop().replace(/\D/g, "");
+        return String(Number(sequence) || 1).padStart(7, "0");
+      }
+
+      function chineseUppercaseInteger(value) {
+        const digits = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
+        const smallUnits = ["", "拾", "佰", "仟"];
+        const bigUnits = ["", "万", "亿", "兆"];
+        const fourDigits = (group) => {
+          let output = "";
+          let pendingZero = false;
+          for (let position = 3; position >= 0; position -= 1) {
+            const divisor = 10 ** position;
+            const digit = Math.floor(group / divisor) % 10;
+            if (digit) {
+              if (pendingZero && output) output += "零";
+              output += digits[digit] + smallUnits[position];
+              pendingZero = false;
+            } else if (output) {
+              pendingZero = true;
+            }
+          }
+          return output;
+        };
+        if (!value) return digits[0];
+        const groups = [];
+        let remaining = Math.floor(value);
+        while (remaining > 0) {
+          groups.push(remaining % 10000);
+          remaining = Math.floor(remaining / 10000);
+        }
+        let output = "";
+        let pendingZero = false;
+        for (let index = groups.length - 1; index >= 0; index -= 1) {
+          const group = groups[index];
+          if (!group) {
+            if (output) pendingZero = true;
+            continue;
+          }
+          if (output && (pendingZero || group < 1000)) output += "零";
+          output += fourDigits(group) + bigUnits[index];
+          pendingZero = false;
+        }
+        return output;
+      }
+
+      function chineseUppercaseMoney(value) {
+        const totalFen = Math.round(Math.max(0, Number(value) || 0) * 100);
+        const yuan = Math.floor(totalFen / 100);
+        const jiao = Math.floor((totalFen % 100) / 10);
+        const fen = totalFen % 10;
+        const digits = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
+        let result = `${chineseUppercaseInteger(yuan)}圆`;
+        if (!jiao && !fen) return `${result}整`;
+        if (jiao) result += `${digits[jiao]}角`;
+        else if (yuan && fen) result += "零";
+        if (fen) result += `${digits[fen]}分`;
+        return result;
+      }
+
       function downloadReceiptImage(receipt) {
         const canvas = document.getElementById("receipt-canvas");
-        canvas.width = 1600;
-        canvas.height = 1080;
+        canvas.width = 1800;
+        canvas.height = 1040;
         const ctx = canvas.getContext("2d");
-        const font = '"Microsoft YaHei", "PingFang SC", sans-serif';
+        const font = '"SimSun", "Songti SC", "Microsoft YaHei", serif';
+        const ink = "#20202a";
+        const purple = "#4d246c";
+        const handwriting = "#1767b1";
+        const left = 70;
+        const right = 1710;
+        const tableTop = 230;
+        const headerBottom = 330;
+        const rowLines = [430, 530, 620, 710, 800, 920];
+        const amountStart = 1080;
+        const amountEnd = 1430;
+        const noteStart = 1430;
+        const itemColumns = [70, 270, 480, 690, 900, 1080];
+        const amountColumns = Array.from({ length: 8 }, (_, index) => amountStart + index * 50);
+        const meter =
+          receipt.meterSnapshot ||
+          state.meterRecords.find(
+            (record) =>
+              record.roomId === receipt.roomId && record.period === receipt.period,
+          ) ||
+          {};
+        const sanitation = Number(receipt.sanitationAmount || 0);
+        const tv = Number(receipt.tvAmount || 0);
+        const internet = Number(receipt.internetAmount || 0);
+        const management = Number(receipt.managementAmount || 0);
+        const other = Number(receipt.otherAmount || 0);
+        const total =
+          Number(receipt.total) ||
+          [
+            receipt.rent,
+            receipt.waterCharge,
+            receipt.electricCharge,
+            sanitation,
+            tv,
+            internet,
+            management,
+            other,
+          ].reduce((sum, value) => sum + Number(value || 0), 0);
 
-        ctx.fillStyle = "#f4f8fc";
+        ctx.fillStyle = "#f5f2f8";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(72, 62, 1456, 956);
-        ctx.strokeStyle = "#173b67";
-        ctx.lineWidth = 4;
-        ctx.strokeRect(72, 62, 1456, 956);
-        ctx.strokeStyle = "#b8c9da";
+        ctx.fillStyle = "#faf9fc";
+        ctx.fillRect(14, 14, 1772, 1012);
+        ctx.strokeStyle = purple;
+        ctx.lineWidth = 8;
+        ctx.strokeRect(14, 14, 1772, 1012);
+        ctx.strokeStyle = "#9f84b1";
         ctx.lineWidth = 2;
-        ctx.strokeRect(88, 78, 1424, 924);
+        ctx.strokeRect(28, 28, 1744, 984);
 
-        ctx.fillStyle = "#173b67";
+        ctx.fillStyle = ink;
         ctx.textAlign = "center";
-        ctx.font = `700 34px ${font}`;
-        ctx.fillText(receipt.buildingName, 800, 140);
-        ctx.font = `800 56px ${font}`;
-        ctx.fillText(receipt.receiptTitle, 800, 215);
-        ctx.fillStyle = "#667085";
-        ctx.font = `24px ${font}`;
-        ctx.fillText(`收据编号：${receipt.serial}`, 800, 260);
+        ctx.font = `700 58px ${font}`;
+        ctx.fillText(receipt.receiptTitle || "房租、水、电费（专用）收据", 820, 112);
+        ctx.textAlign = "left";
+        ctx.font = `34px ${font}`;
+        ctx.fillText("№", 1370, 110);
+        ctx.fillStyle = "#dc3046";
+        ctx.font = `44px "Segoe UI", sans-serif`;
+        ctx.fillText(receiptSerialDisplay(receipt.serial), 1418, 112);
 
-        const left = 150;
-        const right = 1450;
-        const lineY = [330, 410, 500, 590, 680, 770, 860];
-        ctx.strokeStyle = "#d8e0e9";
-        ctx.lineWidth = 2;
-        lineY.forEach((y) => {
+        const [year, month, day] = String(receipt.receivedAt || toLocalDateInput(new Date()))
+          .split("-")
+          .map(Number);
+        ctx.fillStyle = ink;
+        ctx.font = `30px ${font}`;
+        ctx.fillText("用户名称：", 70, 192);
+        ctx.fillStyle = handwriting;
+        ctx.font = `italic 34px "KaiTi", "STKaiti", ${font}`;
+        ctx.fillText(receipt.tenantName || "—", 245, 192);
+        ctx.fillText(`${receipt.buildingName || state.settings.buildingName}　${receipt.roomNumber} 房`, 560, 192);
+        ctx.fillStyle = ink;
+        ctx.font = `28px ${font}`;
+        ctx.fillText("年", 1450, 192);
+        ctx.fillText("月", 1550, 192);
+        ctx.fillText("日", 1645, 192);
+        ctx.fillStyle = handwriting;
+        ctx.font = `italic 32px "KaiTi", "STKaiti", ${font}`;
+        ctx.fillText(String(year), 1364, 192);
+        ctx.fillText(String(month), 1510, 192);
+        ctx.fillText(String(day), 1605, 192);
+
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(left, tableTop, right - left, 690);
+        [headerBottom, ...rowLines].forEach((y) => {
           ctx.beginPath();
           ctx.moveTo(left, y);
           ctx.lineTo(right, y);
           ctx.stroke();
         });
+        itemColumns.slice(1).forEach((x) => {
+          ctx.beginPath();
+          ctx.moveTo(x, tableTop);
+          ctx.lineTo(x, 530);
+          ctx.stroke();
+        });
+        ctx.beginPath();
+        ctx.moveTo(270, 530);
+        ctx.lineTo(270, 620);
+        ctx.moveTo(amountStart, 530);
+        ctx.lineTo(amountStart, 800);
+        ctx.moveTo(noteStart, tableTop);
+        ctx.lineTo(noteStart, 920);
+        ctx.stroke();
 
-        ctx.textAlign = "left";
-        ctx.fillStyle = "#344054";
-        ctx.font = `30px ${font}`;
-        ctx.fillText(`付款人：${receipt.tenantName}`, left, 312);
-        ctx.fillText(`房间：${receipt.roomNumber}`, 650, 312);
-        ctx.fillText(`账期：${formatPeriod(receipt.period)}`, 1050, 312);
+        amountColumns.slice(1, -1).forEach((x) => {
+          ctx.beginPath();
+          ctx.moveTo(x, 280);
+          ctx.lineTo(x, 800);
+          ctx.stroke();
+        });
+        ctx.beginPath();
+        ctx.moveTo(amountStart, 280);
+        ctx.lineTo(amountEnd, 280);
+        ctx.stroke();
 
-        const rows = [
-          ["房屋租金", receipt.rent],
-          ["水费", receipt.waterCharge],
-          ["电费", receipt.electricCharge],
-          ["其他费用", receipt.otherAmount],
-        ];
-        ctx.font = `28px ${font}`;
-        rows.forEach(([label, amount], index) => {
-          const y = 385 + index * 90;
-          ctx.fillStyle = "#475467";
-          ctx.fillText(label, left + 40, y);
-          ctx.textAlign = "right";
-          ctx.fillStyle = "#182235";
-          ctx.fillText(`¥ ${formatMoney(amount)}`, right - 40, y);
-          ctx.textAlign = "left";
+        const feeColumns = [70, 205, 390, 525, 710, 845, 1080];
+        feeColumns.slice(1, -1).forEach((x) => {
+          ctx.beginPath();
+          ctx.moveTo(x, 620);
+          ctx.lineTo(x, 800);
+          ctx.stroke();
         });
 
-        ctx.fillStyle = "#173b67";
-        ctx.font = `800 38px ${font}`;
-        ctx.fillText("合计", left + 40, 745);
+        const centerText = (text, x1, x2, y1, y2, options = {}) => {
+          ctx.save();
+          ctx.fillStyle = options.color || ink;
+          ctx.font = `${options.weight || 500} ${options.size || 28}px ${options.font || font}`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          const value = String(text ?? "—");
+          ctx.fillText(value, (x1 + x2) / 2, (y1 + y2) / 2, Math.max(20, x2 - x1 - 12));
+          ctx.restore();
+        };
+        const writeMoneyGrid = (amount, y1, y2) => {
+          const numeric = Math.round(Math.max(0, Number(amount) || 0) * 100);
+          if (!numeric) return;
+          const digits = String(numeric).padStart(7, "0").slice(-7);
+          const first = Math.max(0, digits.search(/[1-9]/));
+          amountColumns.slice(0, -1).forEach((x, index) => {
+            const visible = index >= first ? digits[index] : "";
+            centerText(visible, x, amountColumns[index + 1], y1, y2, {
+              color: handwriting,
+              size: 32,
+              font: '"KaiTi", "STKaiti", sans-serif',
+            });
+          });
+        };
+        const reading = (value) =>
+          value === null || value === undefined || value === ""
+            ? "—"
+            : Number(value).toFixed(2).replace(/\.00$/, "");
+
+        centerText("项目", 70, 270, tableTop, headerBottom, { weight: 700 });
+        centerText("上月", 270, 480, tableTop, headerBottom, { weight: 700 });
+        centerText("本月", 480, 690, tableTop, headerBottom, { weight: 700 });
+        centerText("实用", 690, 900, tableTop, headerBottom, { weight: 700 });
+        centerText("单价", 900, 1080, tableTop, headerBottom, { weight: 700 });
+        centerText("金额", amountStart, amountEnd, tableTop, 280, { weight: 700, size: 25 });
+        ["万", "千", "百", "十", "元", "角", "分"].forEach((label, index) =>
+          centerText(label, amountColumns[index], amountColumns[index + 1], 280, headerBottom, {
+            weight: 700,
+            size: 24,
+          }),
+        );
+        centerText("备注", noteStart, right, tableTop, headerBottom, { weight: 700 });
+
+        const utilityRows = [
+          {
+            label: "水费（吨）",
+            y1: 330,
+            y2: 430,
+            previous: meter.prevWater,
+            current: meter.currentWater,
+            usage: meter.waterUsage,
+            rate: meter.waterRate,
+            charge: receipt.waterCharge,
+          },
+          {
+            label: "电费（度）",
+            y1: 430,
+            y2: 530,
+            previous: meter.prevElectric,
+            current: meter.currentElectric,
+            usage: meter.electricUsage,
+            rate: meter.electricRate,
+            charge: receipt.electricCharge,
+          },
+        ];
+        utilityRows.forEach((row) => {
+          centerText(row.label, 70, 270, row.y1, row.y2, { weight: 700 });
+          centerText(reading(row.previous), 270, 480, row.y1, row.y2, { color: handwriting, size: 33, font: '"KaiTi", sans-serif' });
+          centerText(reading(row.current), 480, 690, row.y1, row.y2, { color: handwriting, size: 33, font: '"KaiTi", sans-serif' });
+          centerText(reading(row.usage), 690, 900, row.y1, row.y2, { color: handwriting, size: 33, font: '"KaiTi", sans-serif' });
+          centerText(row.rate !== undefined ? `${formatMoney(row.rate)}` : "—", 900, 1080, row.y1, row.y2, { color: handwriting, size: 31, font: '"KaiTi", sans-serif' });
+          writeMoneyGrid(row.charge, row.y1, row.y2);
+        });
+
+        centerText("房租", 70, 270, 530, 620, { weight: 700 });
+        centerText(`¥ ${formatMoney(receipt.rent)}`, 270, 1080, 530, 620, {
+          color: handwriting,
+          size: 34,
+          font: '"KaiTi", sans-serif',
+        });
+        writeMoneyGrid(receipt.rent, 530, 620);
+
+        const feeRows = [
+          [
+            ["卫生费", sanitation],
+            ["电视费", tv],
+            ["网费", internet],
+          ],
+          [
+            ["管理费", management],
+            ["其它", other],
+            ["支付", receipt.paymentMethod || "—"],
+          ],
+        ];
+        feeRows.forEach((fees, rowIndex) => {
+          const y1 = rowIndex ? 710 : 620;
+          const y2 = rowIndex ? 800 : 710;
+          fees.forEach(([label, value], pairIndex) => {
+            centerText(label, feeColumns[pairIndex * 2], feeColumns[pairIndex * 2 + 1], y1, y2, {
+              weight: 700,
+              size: 25,
+            });
+            centerText(
+              typeof value === "number" ? formatMoney(value) : value,
+              feeColumns[pairIndex * 2 + 1],
+              feeColumns[pairIndex * 2 + 2],
+              y1,
+              y2,
+              {
+                color: handwriting,
+                size: 29,
+                font: '"KaiTi", sans-serif',
+              },
+            );
+          });
+          if (rowIndex === 0) writeMoneyGrid(sanitation + tv + internet, y1, y2);
+          else writeMoneyGrid(management + other, y1, y2);
+        });
+
+        ctx.save();
+        ctx.fillStyle = "#4a374f";
+        ctx.font = `24px ${font}`;
+        ctx.textAlign = "center";
+        const noteLines = [
+          "① 存根（白）",
+          "② 客户（红）",
+          `账期：${formatPeriod(receipt.period)}`,
+          `备注：${receipt.note || "无"}`,
+        ];
+        noteLines.forEach((line, index) =>
+          ctx.fillText(line.slice(0, 15), (noteStart + right) / 2, 385 + index * 88),
+        );
+        ctx.restore();
+
+        ctx.fillStyle = ink;
+        ctx.font = `700 28px ${font}`;
+        ctx.textAlign = "left";
+        ctx.fillText("合　计", 92, 845);
+        ctx.font = `24px ${font}`;
+        ctx.fillText("人民币（大写）", 92, 885);
+        ctx.fillStyle = handwriting;
+        ctx.font = `34px "KaiTi", "STKaiti", ${font}`;
+        ctx.fillText(chineseUppercaseMoney(total), 340, 875, 920);
+        ctx.fillStyle = ink;
+        ctx.font = `26px ${font}`;
         ctx.textAlign = "right";
-        ctx.font = `800 44px ${font}`;
-        ctx.fillText(`¥ ${formatMoney(receipt.total)}`, right - 40, 745);
+        ctx.fillText(`（¥：${formatMoney(total)}）`, 1690, 875);
 
         ctx.textAlign = "left";
-        ctx.fillStyle = "#667085";
-        ctx.font = `24px ${font}`;
-        ctx.fillText(`支付方式：${receipt.paymentMethod}`, left + 40, 835);
-        ctx.fillText(`收款日期：${formatDate(receipt.receivedAt)}`, 650, 835);
-        ctx.fillText(`收款人：${receipt.payee}`, 1120, 835);
-        ctx.font = `22px ${font}`;
-        ctx.fillText(`备注：${receipt.note || "无"}`.slice(0, 62), left + 40, 925);
-
-        ctx.textAlign = "center";
-        ctx.fillStyle = "#98a2b3";
-        ctx.font = `19px ${font}`;
-        ctx.fillText("本收据由房务通生成，请妥善保存", 800, 975);
+        ctx.font = `28px ${font}`;
+        ctx.fillText("开票人：", 120, 978);
+        ctx.fillText("收款人：", 1090, 978);
+        ctx.fillStyle = handwriting;
+        ctx.font = `italic 32px "KaiTi", "STKaiti", ${font}`;
+        ctx.fillText(receipt.issuer || receipt.payee || state.settings.payee, 250, 978);
+        ctx.fillText(receipt.payee || state.settings.payee, 1220, 978);
 
         canvas.toBlob((blob) => {
           if (!blob) {
@@ -4219,12 +4523,18 @@
             rent: Number(data.get("rent")),
             waterCharge: Number(data.get("waterCharge")),
             electricCharge: Number(data.get("electricCharge")),
+            sanitationAmount: Number(data.get("sanitationAmount")),
+            tvAmount: Number(data.get("tvAmount")),
+            internetAmount: Number(data.get("internetAmount")),
+            managementAmount: Number(data.get("managementAmount")),
             otherAmount: Number(data.get("otherAmount")),
           };
           if (
             !roomId ||
             !period ||
             !String(data.get("tenantName") || "").trim() ||
+            !String(data.get("issuer") || "").trim() ||
+            !String(data.get("payee") || "").trim() ||
             Object.values(amounts).some((value) => !Number.isFinite(value) || value < 0)
           ) {
             error.textContent = "请完整填写房间、租客、账期和有效费用金额。";
@@ -4242,10 +4552,24 @@
             total: Number(Object.values(amounts).reduce((sum, value) => sum + value, 0).toFixed(2)),
             paymentMethod: String(data.get("paymentMethod")),
             receivedAt: String(data.get("receivedAt")),
+            issuer: String(data.get("issuer")).trim(),
             payee: String(data.get("payee")).trim(),
             note: String(data.get("note") || "").trim(),
             buildingName: state.settings.buildingName,
             receiptTitle: state.settings.receiptTitle,
+            meterSnapshot: meter
+              ? {
+                  inputMode: meter.inputMode,
+                  prevWater: meter.prevWater ?? null,
+                  currentWater: meter.currentWater ?? null,
+                  waterUsage: meter.waterUsage,
+                  waterRate: meter.waterRate,
+                  prevElectric: meter.prevElectric ?? null,
+                  currentElectric: meter.currentElectric ?? null,
+                  electricUsage: meter.electricUsage,
+                  electricRate: meter.electricRate,
+                }
+              : null,
             createdAt: new Date().toISOString(),
           };
           state.receipts.push(receipt);

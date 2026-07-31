@@ -80,4 +80,9 @@ test("contains default room, billing, and receipt rules", async () => {
   assert.match(html, /TEMPLATE_VERSION = "a4-usage-v1"/);
   assert.match(html, /mnist-12\.onnx/);
   assert.match(html, /四角定位标记/);
+  assert.match(html, /房租、水、电费（专用）收据/);
+  assert.match(html, /chineseUppercaseMoney/);
+  assert.match(html, /sanitationAmount/);
+  assert.match(html, /managementAmount/);
+  assert.match(html, /meterSnapshot/);
 });

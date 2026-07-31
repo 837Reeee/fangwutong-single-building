@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "房务通 · 出租屋信息导航",
+  title: "房务通 · 单栋出租楼管理",
   description:
-    "集中管理房源、租客、合同、账务、维修与常用工具的出租屋信息导航中心。",
+    "面向单栋出租楼的房间、水电和租金收据管理工具。",
 };
 
 export default function RootLayout({

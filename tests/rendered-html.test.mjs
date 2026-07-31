@@ -22,33 +22,56 @@ async function render() {
   );
 }
 
-test("serves the standalone rental navigation site", async () => {
+test("serves the standalone single-building management site", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>房务通 · 出租屋信息导航<\/title>/);
-  assert.match(html, /让房屋管理，更简单有序/);
-  assert.match(html, /const NAV_DATA = \[/);
-  assert.match(html, /const SEARCH_ENGINES = \[/);
-  assert.match(html, /IntersectionObserver/);
+  assert.match(html, /<title>房务通 · 单栋出租楼管理<\/title>/);
+  assert.match(html, /fangwutong\.single-building\.v1/);
+  assert.match(html, /localStorage\.setItem/);
+  assert.match(html, /receipt-canvas/);
+  assert.match(html, /canvas\.toBlob/);
   assert.match(html, /aria-controls="sidebar"/);
-  assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
+  assert.doesNotMatch(
+    html,
+    /codex-preview|react-loading-skeleton|SEARCH_ENGINES|IntersectionObserver/,
+  );
 });
 
-test("includes all six top-level rental management categories", async () => {
+test("includes the three complete two-level business menus", async () => {
   const response = await render();
   const html = await response.text();
 
-  for (const category of [
-    "房源管理",
-    "租客管理",
-    "合同租约",
-    "收租财务",
-    "维修报修",
-    "系统工具",
+  for (const menuLabel of [
+    "房间管理",
+    "房间总览",
+    "在租房间",
+    "空置房间",
+    "房间设置",
+    "水电录入",
+    "本月录入",
+    "抄表记录",
+    "费用设置",
+    "租金收据",
+    "开具收据",
+    "收据记录",
+    "模板设置",
   ]) {
-    assert.match(html, new RegExp(category));
+    assert.match(html, new RegExp(menuLabel));
   }
+});
+
+test("contains default room, billing, and receipt rules", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /floor <= 6/);
+  assert.match(html, /unit <= 4/);
+  assert.match(html, /waterRate: 3\.5/);
+  assert.match(html, /electricRate: 0\.8/);
+  assert.match(html, /RENT-\$\{period\.replace/);
+  assert.match(html, /本期读数不能低于上期读数/);
+  assert.match(html, /该房间存在水电或收据记录/);
 });

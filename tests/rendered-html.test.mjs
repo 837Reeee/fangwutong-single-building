@@ -109,3 +109,30 @@ test("supports working single and batch receipt creation", async () => {
   assert.match(html, /const meter = state\.meterRecords\.find/);
   assert.match(html, /document\.addEventListener\("submit", async/);
 });
+
+test("uses tenant fee defaults and renders the simplified receipt header", async () => {
+  const response = await render();
+  const html = await response.text();
+  const receiptRenderer = html.slice(
+    html.indexOf("function createReceiptImageBlob"),
+    html.indexOf("function safeDownloadName"),
+  );
+
+  for (const fieldId of [
+    "room-sanitation",
+    "room-tv",
+    "room-internet",
+    "room-management",
+    "room-other",
+    "room-payment-method",
+  ]) {
+    assert.match(html, new RegExp(fieldId));
+  }
+  assert.match(html, /rooms: saved\.rooms\.map/);
+  assert.match(html, /Number\(room\.sanitationAmount \|\| 0\)\.toFixed/);
+  assert.match(html, /batchReceiptDraft\.paymentMethod === "room-default"/);
+  assert.match(receiptRenderer, /receipt\.buildingName \|\| state\.settings\.buildingName/);
+  assert.match(receiptRenderer, /receipt\.roomNumber\}房/);
+  assert.doesNotMatch(receiptRenderer, /receipt\.tenantName/);
+  assert.doesNotMatch(receiptRenderer, /存根|客户|账期：|备注：/);
+});

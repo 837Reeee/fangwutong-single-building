@@ -1829,6 +1829,36 @@
               <span class="field-label">入住日期</span>
               <input class="field-input" id="room-move-in" name="moveInDate" type="date" />
             </label>
+            <label class="field tenant-field">
+              <span class="field-label">卫生费（元）</span>
+              <input class="field-input" id="room-sanitation" name="sanitationAmount" type="number" min="0" step="0.01" value="0" />
+            </label>
+            <label class="field tenant-field">
+              <span class="field-label">电视费（元）</span>
+              <input class="field-input" id="room-tv" name="tvAmount" type="number" min="0" step="0.01" value="0" />
+            </label>
+            <label class="field tenant-field">
+              <span class="field-label">网费（元）</span>
+              <input class="field-input" id="room-internet" name="internetAmount" type="number" min="0" step="0.01" value="0" />
+            </label>
+            <label class="field tenant-field">
+              <span class="field-label">管理费（元）</span>
+              <input class="field-input" id="room-management" name="managementAmount" type="number" min="0" step="0.01" value="0" />
+            </label>
+            <label class="field tenant-field">
+              <span class="field-label">其它费用（元）</span>
+              <input class="field-input" id="room-other" name="otherAmount" type="number" min="0" step="0.01" value="0" />
+            </label>
+            <label class="field tenant-field">
+              <span class="field-label">默认支付方式</span>
+              <select class="field-select" id="room-payment-method" name="paymentMethod">
+                <option>微信</option>
+                <option>支付宝</option>
+                <option>银行转账</option>
+                <option>现金</option>
+                <option>其他</option>
+              </select>
+            </label>
             <label class="field full">
               <span class="field-label">备注</span>
               <textarea class="field-textarea" id="room-note" name="note" maxlength="300"></textarea>
@@ -1941,7 +1971,7 @@
       let batchReceiptDraft = {
         period: CURRENT_PERIOD,
         roomIds: new Set(),
-        paymentMethod: "微信",
+        paymentMethod: "room-default",
         receivedAt: toLocalDateInput(new Date()),
         issuer: state.settings.payee,
         payee: state.settings.payee,
@@ -1976,6 +2006,12 @@
               phone: "",
               monthlyRent: 1200,
               moveInDate: "",
+              sanitationAmount: 0,
+              tvAmount: 0,
+              internetAmount: 0,
+              managementAmount: 0,
+              otherAmount: 0,
+              paymentMethod: "微信",
               note: "",
             });
           }
@@ -2006,6 +2042,15 @@
               ...saved,
               version: 2,
               settings: { ...createDefaultState().settings, ...saved.settings },
+              rooms: saved.rooms.map((room) => ({
+                sanitationAmount: 0,
+                tvAmount: 0,
+                internetAmount: 0,
+                managementAmount: 0,
+                otherAmount: 0,
+                paymentMethod: "微信",
+                ...room,
+              })),
               meterRecords: Array.isArray(saved.meterRecords)
                 ? saved.meterRecords.map((record) => ({
                     inputMode: record.inputMode || "meter-reading",
@@ -3512,11 +3557,11 @@
           rent: Number(room.monthlyRent) || 0,
           waterCharge: Number(meter?.waterCharge) || 0,
           electricCharge: Number(meter?.electricCharge) || 0,
-          sanitationAmount: 0,
-          tvAmount: 0,
-          internetAmount: 0,
-          managementAmount: 0,
-          otherAmount: 0,
+          sanitationAmount: Number(room.sanitationAmount) || 0,
+          tvAmount: Number(room.tvAmount) || 0,
+          internetAmount: Number(room.internetAmount) || 0,
+          managementAmount: Number(room.managementAmount) || 0,
+          otherAmount: Number(room.otherAmount) || 0,
         };
         return {
           meter,
@@ -3633,7 +3678,8 @@
                   <label class="field">
                     <span class="field-label">支付方式</span>
                     <select class="field-select" name="paymentMethod">
-                      ${["微信", "支付宝", "银行转账", "现金", "其他"].map((method) => `<option ${batchReceiptDraft.paymentMethod === method ? "selected" : ""}>${method}</option>`).join("")}
+                      <option value="room-default" ${batchReceiptDraft.paymentMethod === "room-default" ? "selected" : ""}>按房客资料</option>
+                      ${["微信", "支付宝", "银行转账", "现金", "其他"].map((method) => `<option value="${method}" ${batchReceiptDraft.paymentMethod === method ? "selected" : ""}>统一使用${method}</option>`).join("")}
                     </select>
                   </label>
                   <label class="field">
@@ -3666,7 +3712,9 @@
       function captureBatchReceiptDraft(form = document.getElementById("batch-receipt-form")) {
         if (!form) return;
         const data = new FormData(form);
-        batchReceiptDraft.paymentMethod = String(data.get("paymentMethod") || "微信");
+        batchReceiptDraft.paymentMethod = String(
+          data.get("paymentMethod") || "room-default",
+        );
         batchReceiptDraft.receivedAt =
           String(data.get("receivedAt") || "") || toLocalDateInput(new Date());
         batchReceiptDraft.issuer = String(data.get("issuer") || "").trim();
@@ -3773,32 +3821,28 @@
                     </label>
                     <label class="field">
                       <span class="field-label">卫生费（元）</span>
-                      <input class="field-input receipt-amount" id="receipt-sanitation" name="sanitationAmount" type="number" min="0" step="0.01" value="0.00" required />
+                      <input class="field-input receipt-amount" id="receipt-sanitation" name="sanitationAmount" type="number" min="0" step="0.01" value="${Number(room.sanitationAmount || 0).toFixed(2)}" required />
                     </label>
                     <label class="field">
                       <span class="field-label">电视费（元）</span>
-                      <input class="field-input receipt-amount" id="receipt-tv" name="tvAmount" type="number" min="0" step="0.01" value="0.00" required />
+                      <input class="field-input receipt-amount" id="receipt-tv" name="tvAmount" type="number" min="0" step="0.01" value="${Number(room.tvAmount || 0).toFixed(2)}" required />
                     </label>
                     <label class="field">
                       <span class="field-label">网费（元）</span>
-                      <input class="field-input receipt-amount" id="receipt-internet" name="internetAmount" type="number" min="0" step="0.01" value="0.00" required />
+                      <input class="field-input receipt-amount" id="receipt-internet" name="internetAmount" type="number" min="0" step="0.01" value="${Number(room.internetAmount || 0).toFixed(2)}" required />
                     </label>
                     <label class="field">
                       <span class="field-label">管理费（元）</span>
-                      <input class="field-input receipt-amount" id="receipt-management" name="managementAmount" type="number" min="0" step="0.01" value="0.00" required />
+                      <input class="field-input receipt-amount" id="receipt-management" name="managementAmount" type="number" min="0" step="0.01" value="${Number(room.managementAmount || 0).toFixed(2)}" required />
                     </label>
                     <label class="field">
                       <span class="field-label">其它费用（元）</span>
-                      <input class="field-input receipt-amount" id="receipt-other" name="otherAmount" type="number" min="0" step="0.01" value="0.00" required />
+                      <input class="field-input receipt-amount" id="receipt-other" name="otherAmount" type="number" min="0" step="0.01" value="${Number(room.otherAmount || 0).toFixed(2)}" required />
                     </label>
                     <label class="field">
                       <span class="field-label">支付方式</span>
                       <select class="field-select" name="paymentMethod">
-                        <option>微信</option>
-                        <option>支付宝</option>
-                        <option>银行转账</option>
-                        <option>现金</option>
-                        <option>其他</option>
+                        ${["微信", "支付宝", "银行转账", "现金", "其他"].map((method) => `<option ${room.paymentMethod === method ? "selected" : ""}>${method}</option>`).join("")}
                       </select>
                     </label>
                     <label class="field">
@@ -3834,7 +3878,7 @@
               </div>
               <div class="panel-body">
                 <div class="calc-box" id="receipt-calculation">
-                  ${receiptCalculationMarkup(room.monthlyRent, waterCharge, electricCharge, 0, 0, 0, 0, 0)}
+                  ${receiptCalculationMarkup(room.monthlyRent, waterCharge, electricCharge, room.sanitationAmount, room.tvAmount, room.internetAmount, room.managementAmount, room.otherAmount)}
                 </div>
               </div>
             </aside>
@@ -4016,6 +4060,13 @@
         document.getElementById("room-tenant").value = room?.tenantName || "";
         document.getElementById("room-phone").value = room?.phone || "";
         document.getElementById("room-move-in").value = room?.moveInDate || "";
+        document.getElementById("room-sanitation").value = room?.sanitationAmount ?? 0;
+        document.getElementById("room-tv").value = room?.tvAmount ?? 0;
+        document.getElementById("room-internet").value = room?.internetAmount ?? 0;
+        document.getElementById("room-management").value = room?.managementAmount ?? 0;
+        document.getElementById("room-other").value = room?.otherAmount ?? 0;
+        document.getElementById("room-payment-method").value =
+          room?.paymentMethod || "微信";
         document.getElementById("room-note").value = room?.note || "";
         document.getElementById("room-form-error").textContent = "";
         syncTenantFields();
@@ -4028,6 +4079,9 @@
         const occupied = document.getElementById("room-status").value === "occupied";
         document.querySelectorAll(".tenant-field").forEach((field) => {
           field.style.opacity = occupied ? "1" : "0.55";
+          field.querySelectorAll("input, select, textarea").forEach((control) => {
+            control.disabled = !occupied;
+          });
         });
         document.getElementById("room-tenant").required = occupied;
       }
@@ -4307,8 +4361,11 @@
         ctx.fillText("用户名称：", 70, 192);
         ctx.fillStyle = handwriting;
         ctx.font = `italic 34px "KaiTi", "STKaiti", ${font}`;
-        ctx.fillText(receipt.tenantName || "—", 245, 192);
-        ctx.fillText(`${receipt.buildingName || state.settings.buildingName}　${receipt.roomNumber} 房`, 560, 192);
+        ctx.fillText(
+          `${receipt.buildingName || state.settings.buildingName}　${receipt.roomNumber}房`,
+          245,
+          192,
+        );
         ctx.fillStyle = ink;
         ctx.font = `28px ${font}`;
         ctx.fillText("年", 1450, 192);
@@ -4481,21 +4538,6 @@
           if (rowIndex === 0) writeMoneyGrid(sanitation + tv + internet, y1, y2);
           else writeMoneyGrid(management + other, y1, y2);
         });
-
-        ctx.save();
-        ctx.fillStyle = "#4a374f";
-        ctx.font = `24px ${font}`;
-        ctx.textAlign = "center";
-        const noteLines = [
-          "① 存根（白）",
-          "② 客户（红）",
-          `账期：${formatPeriod(receipt.period)}`,
-          `备注：${receipt.note || "无"}`,
-        ];
-        noteLines.forEach((line, index) =>
-          ctx.fillText(line.slice(0, 15), (noteStart + right) / 2, 385 + index * 88),
-        );
-        ctx.restore();
 
         ctx.fillStyle = ink;
         ctx.font = `700 28px ${font}`;
@@ -4797,7 +4839,7 @@
             batchReceiptDraft = {
               period: CURRENT_PERIOD,
               roomIds: new Set(),
-              paymentMethod: "微信",
+              paymentMethod: "room-default",
               receivedAt: toLocalDateInput(new Date()),
               issuer: state.settings.payee,
               payee: state.settings.payee,
@@ -4941,6 +4983,13 @@
           const status = data.get("status");
           const tenantName = String(data.get("tenantName") || "").trim();
           const monthlyRent = Number(data.get("monthlyRent"));
+          const tenantFees = {
+            sanitationAmount: Number(data.get("sanitationAmount") || 0),
+            tvAmount: Number(data.get("tvAmount") || 0),
+            internetAmount: Number(data.get("internetAmount") || 0),
+            managementAmount: Number(data.get("managementAmount") || 0),
+            otherAmount: Number(data.get("otherAmount") || 0),
+          };
           const error = document.getElementById("room-form-error");
           if (!number || !Number.isInteger(floor) || floor < 1 || monthlyRent < 0) {
             error.textContent = "请填写有效的房号、楼层和月租。";
@@ -4954,6 +5003,13 @@
             error.textContent = "在租房间必须填写租客姓名。";
             return;
           }
+          if (
+            status === "occupied" &&
+            Object.values(tenantFees).some((value) => !Number.isFinite(value) || value < 0)
+          ) {
+            error.textContent = "房客费用必须填写为不小于0的有效金额。";
+            return;
+          }
           const room = {
             id: roomId || makeId("room"),
             number,
@@ -4963,6 +5019,15 @@
             phone: status === "occupied" ? String(data.get("phone") || "").trim() : "",
             monthlyRent,
             moveInDate: status === "occupied" ? String(data.get("moveInDate") || "") : "",
+            sanitationAmount: status === "occupied" ? tenantFees.sanitationAmount : 0,
+            tvAmount: status === "occupied" ? tenantFees.tvAmount : 0,
+            internetAmount: status === "occupied" ? tenantFees.internetAmount : 0,
+            managementAmount: status === "occupied" ? tenantFees.managementAmount : 0,
+            otherAmount: status === "occupied" ? tenantFees.otherAmount : 0,
+            paymentMethod:
+              status === "occupied"
+                ? String(data.get("paymentMethod") || "微信")
+                : "微信",
             note: String(data.get("note") || "").trim(),
           };
           if (roomId) {
@@ -5179,7 +5244,10 @@
               room,
               period,
               amounts,
-              paymentMethod: batchReceiptDraft.paymentMethod,
+              paymentMethod:
+                batchReceiptDraft.paymentMethod === "room-default"
+                  ? room.paymentMethod || "微信"
+                  : batchReceiptDraft.paymentMethod,
               receivedAt: batchReceiptDraft.receivedAt,
               issuer: batchReceiptDraft.issuer,
               payee: batchReceiptDraft.payee,

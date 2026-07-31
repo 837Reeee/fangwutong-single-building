@@ -87,6 +87,17 @@ test("contains default room, billing, and receipt rules", async () => {
   assert.match(html, /meterSnapshot/);
 });
 
+test("recalculates existing meter records after utility rate changes", async () => {
+  const response = await render();
+  const html = await response.text();
+  assert.match(html, /function updateExistingMeterRates/);
+  assert.match(html, /record\.waterRate = waterRate/);
+  assert.match(html, /record\.electricRate = electricRate/);
+  assert.match(html, /record\.waterCharge = Number/);
+  assert.match(html, /record\.electricCharge = Number/);
+  assert.match(html, /已经开具的历史收据金额不会改变/);
+});
+
 test("supports selecting and batch downloading receipt images", async () => {
   const response = await render();
   const html = await response.text();

@@ -4834,7 +4834,7 @@
             <div class="panel-header">
               <div>
                 <h2 class="panel-title">水电费用设置</h2>
-                <p class="panel-subtitle">新保存的抄表记录将使用最新单价</p>
+                <p class="panel-subtitle">保存后，现有水电记录与后续录入统一使用最新单价</p>
               </div>
             </div>
             <div class="panel-body">
@@ -4849,7 +4849,7 @@
                     <input class="field-input" name="electricRate" type="number" min="0" step="0.01" value="${state.settings.electricRate}" required />
                   </label>
                 </div>
-                <p class="field-help">历史记录会保留录入时的单价和费用，不会被重新计算。</p>
+                <p class="field-help">保存后会重新计算全部已录入、已导入的水电费用；已经开具的历史收据金额不会改变。</p>
                 <div class="form-actions">
                   <button class="button button-primary" type="submit">保存费用设置</button>
                 </div>
@@ -5728,6 +5728,40 @@
           electricUsage: meter.electricUsage,
           electricRate: meter.electricRate,
         };
+      }
+
+      function updateExistingMeterRates(waterRate, electricRate) {
+        const changedAt = new Date().toISOString();
+        let updated = 0;
+        state.meterRecords.forEach((record) => {
+          const storedWaterUsage = Number(record.waterUsage);
+          const storedElectricUsage = Number(record.electricUsage);
+          const derivedWaterUsage = Number(record.currentWater) - Number(record.prevWater);
+          const derivedElectricUsage = Number(record.currentElectric) - Number(record.prevElectric);
+          const waterUsage = Number.isFinite(storedWaterUsage)
+            ? storedWaterUsage
+            : derivedWaterUsage;
+          const electricUsage = Number.isFinite(storedElectricUsage)
+            ? storedElectricUsage
+            : derivedElectricUsage;
+          if (
+            !Number.isFinite(waterUsage) ||
+            !Number.isFinite(electricUsage) ||
+            waterUsage < 0 ||
+            electricUsage < 0
+          ) {
+            return;
+          }
+          record.waterUsage = Number(waterUsage.toFixed(2));
+          record.electricUsage = Number(electricUsage.toFixed(2));
+          record.waterRate = waterRate;
+          record.electricRate = electricRate;
+          record.waterCharge = Number((record.waterUsage * waterRate).toFixed(2));
+          record.electricCharge = Number((record.electricUsage * electricRate).toFixed(2));
+          record.updatedAt = changedAt;
+          updated += 1;
+        });
+        return updated;
       }
 
       function createReceiptRecord({
@@ -6857,13 +6891,19 @@
           const data = new FormData(form);
           const waterRate = Number(data.get("waterRate"));
           const electricRate = Number(data.get("electricRate"));
-          if (waterRate < 0 || electricRate < 0) {
-            showToast("水电单价不能小于0");
+          if (
+            !Number.isFinite(waterRate) ||
+            !Number.isFinite(electricRate) ||
+            waterRate < 0 ||
+            electricRate < 0
+          ) {
+            showToast("请输入有效且不小于0的水电单价");
             return;
           }
           state.settings.waterRate = waterRate;
           state.settings.electricRate = electricRate;
-          saveState("水电单价已保存");
+          const updated = updateExistingMeterRates(waterRate, electricRate);
+          saveState(`水电单价已保存，已更新 ${updated} 条记录`);
           renderView();
         }
 

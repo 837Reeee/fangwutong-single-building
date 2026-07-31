@@ -136,3 +136,21 @@ test("uses tenant fee defaults and renders the simplified receipt header", async
   assert.doesNotMatch(receiptRenderer, /receipt\.tenantName/);
   assert.doesNotMatch(receiptRenderer, /存根|客户|账期：|备注：/);
 });
+
+test("supports free-form handwritten three-column meter imports", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /FREEFORM_TEMPLATE_VERSION = "freeform-3col-v1"/);
+  assert.match(html, /inputMode: "freeform-reading"/);
+  assert.match(html, /detectFreeformPaper/);
+  assert.match(html, /rectifyFreeformImage/);
+  assert.match(html, /detectFreeformRows/);
+  assert.match(html, /recognizeFreeformField/);
+  assert.match(html, /alignment-canvas/);
+  assert.match(html, /data-action="recognize-freeform"/);
+  assert.match(html, /applyPreviousReadingToRow/);
+  assert.match(html, /values\.currentWater < values\.prevWater/);
+  assert.match(html, /values\.currentElectric < values\.prevElectric/);
+  assert.match(html, /已核对房号和全部读数/);
+});

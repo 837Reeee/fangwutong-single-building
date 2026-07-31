@@ -1405,12 +1405,169 @@
         font-size: 11px;
       }
 
+      .import-format-switch {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .import-format-card {
+        display: flex;
+        min-height: 82px;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border: 1px solid var(--slate-200);
+        border-radius: 14px;
+        background: white;
+        color: var(--slate-700);
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .import-format-card[aria-pressed="true"] {
+        border-color: #79add7;
+        background: var(--blue-50);
+        box-shadow: inset 0 0 0 1px rgba(35, 104, 170, 0.08);
+      }
+
+      .import-format-icon {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        place-items: center;
+        border-radius: 11px;
+        background: var(--slate-100);
+        color: var(--blue-700);
+        font-weight: 800;
+      }
+
+      .import-format-card[aria-pressed="true"] .import-format-icon {
+        background: var(--blue-100);
+      }
+
+      .import-format-card strong,
+      .import-format-card small {
+        display: block;
+      }
+
+      .import-format-card strong {
+        color: var(--slate-900);
+        font-size: 12px;
+      }
+
+      .import-format-card small {
+        margin-top: 4px;
+        color: var(--slate-500);
+        font-size: 10px;
+        line-height: 1.5;
+      }
+
+      .alignment-workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 250px;
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .alignment-canvas-wrap {
+        position: relative;
+        min-height: 360px;
+        overflow: hidden;
+        border: 1px solid var(--slate-200);
+        border-radius: 16px;
+        background:
+          linear-gradient(45deg, #e8edf2 25%, transparent 25%) 0 0 / 22px 22px,
+          linear-gradient(45deg, transparent 75%, #e8edf2 75%) 0 0 / 22px 22px,
+          #f2f5f8;
+        touch-action: none;
+      }
+
+      .alignment-canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: 68vh;
+        cursor: crosshair;
+        object-fit: contain;
+      }
+
+      .alignment-help {
+        padding: 16px;
+        border: 1px solid var(--slate-200);
+        border-radius: 16px;
+        background: var(--slate-50);
+      }
+
+      .alignment-help h3 {
+        margin: 0 0 10px;
+        color: var(--slate-900);
+        font-size: 13px;
+      }
+
+      .alignment-help ol {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--slate-600);
+        font-size: 11px;
+        line-height: 1.75;
+      }
+
+      .alignment-legend {
+        display: grid;
+        gap: 7px;
+        margin-top: 13px;
+      }
+
+      .alignment-legend span {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--slate-500);
+        font-size: 10px;
+      }
+
+      .alignment-legend i {
+        width: 19px;
+        height: 3px;
+        border-radius: 999px;
+        background: var(--legend-color);
+      }
+
+      .freeform-row-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 7px;
+      }
+
+      .reading-pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+
+      .reading-pair label {
+        color: var(--slate-500);
+        font-size: 9px;
+      }
+
+      .reading-pair .ocr-input {
+        width: 92px;
+        margin-top: 3px;
+      }
+
       @media (max-width: 1180px) {
         .room-grid {
           grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
         .split-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .alignment-workspace {
           grid-template-columns: 1fr;
         }
       }
@@ -1543,6 +1700,10 @@
 
         .review-summary {
           grid-template-columns: 1fr 1fr;
+        }
+
+        .import-format-switch {
+          grid-template-columns: 1fr;
         }
 
         .ocr-cell {
@@ -1895,6 +2056,7 @@
       const LEGACY_STORAGE_KEY = "fangwutong.single-building.v1";
       const CURRENT_PERIOD = toLocalDateInput(new Date()).slice(0, 7);
       const TEMPLATE_VERSION = "a4-usage-v1";
+      const FREEFORM_TEMPLATE_VERSION = "freeform-3col-v1";
       const TEMPLATE = {
         width: 2480,
         height: 3508,
@@ -1934,7 +2096,7 @@
           icon: "表",
           items: [
             { id: "meter-entry", label: "本月录入", description: "录入水电读数并自动计算费用" },
-            { id: "meter-import", label: "批量导入", description: "识别固定 A4 表格中的全手写月度水电用量" },
+            { id: "meter-import", label: "批量导入", description: "识别固定模板或自由三列手写水电照片" },
             { id: "meter-records", label: "抄表记录", description: "查询和维护历史水电记录" },
             { id: "meter-settings", label: "费用设置", description: "设置水费与电费单价" },
           ],
@@ -1981,12 +2143,16 @@
       let receiptContext = { roomId: occupiedRooms()[0]?.id || "", period: CURRENT_PERIOD };
       let importDraft = {
         period: CURRENT_PERIOD,
+        mode: "template",
         stage: "idle",
         progress: 0,
         progressText: "",
         rows: [],
         fileName: "",
         result: null,
+        sourceImage: null,
+        alignment: null,
+        dragTarget: null,
       };
       let ocrSessionPromise = null;
       let confirmResolver = null;
@@ -2245,6 +2411,9 @@
         };
         viewContainer.innerHTML = (renderers[activeView] || renderRoomOverview)();
         syncDynamicCalculations();
+        if (activeView === "meter-import" && importDraft.stage === "align") {
+          requestAnimationFrame(() => drawAlignmentEditor());
+        }
       }
 
       function renderRoomOverview() {
@@ -2585,28 +2754,40 @@
 
       function renderMeterImport() {
         const analysis = analyzeImportRows();
+        const isFreeform = importDraft.mode === "freeform";
         return `
           <section class="panel">
             <div class="panel-header">
               <div>
-                <h2 class="panel-title">A4 手写表批量导入</h2>
-                <p class="panel-subtitle">一张表对应一个月份，房号、用水量和用电量均可手写识别</p>
+                <h2 class="panel-title">手写水电表批量导入</h2>
+                <p class="panel-subtitle">${isFreeform ? "识别无表格线的三列手写照片，数据按累计表读数计费" : "识别系统固定 A4 表格中的房号和月度水电用量"}</p>
               </div>
-              <span class="source-badge">固定模板 ${TEMPLATE_VERSION}</span>
+              <span class="source-badge">${isFreeform ? `自由三列 ${FREEFORM_TEMPLATE_VERSION}` : `固定模板 ${TEMPLATE_VERSION}`}</span>
             </div>
             <div class="panel-body">
+              <div class="import-format-switch" aria-label="选择导入格式">
+                <button class="import-format-card" type="button" data-action="set-import-mode" data-mode="template" aria-pressed="${!isFreeform}">
+                  <span class="import-format-icon" aria-hidden="true">格</span>
+                  <span><strong>固定 A4 模板</strong><small>带定位标记和数字格，导入纸上填写的本月实际用量</small></span>
+                </button>
+                <button class="import-format-card" type="button" data-action="set-import-mode" data-mode="freeform" aria-pressed="${isFreeform}">
+                  <span class="import-format-icon" aria-hidden="true">手</span>
+                  <span><strong>自由手写三列</strong><small>无表格线也可以，依次填写房间号、本期水表、本期电表读数</small></span>
+                </button>
+              </div>
+
               <div class="import-steps" aria-label="导入步骤">
                 <div class="import-step">
                   <span class="import-step-number">1</span>
-                  <div><strong>打印模板</strong><span>选择账期后打印固定 A4 表格</span></div>
+                  <div><strong>${isFreeform ? "拍摄整张纸" : "打印模板"}</strong><span>${isFreeform ? "保持三列大致对齐，纸张边缘尽量完整" : "选择账期后打印固定 A4 表格"}</span></div>
                 </div>
                 <div class="import-step">
                   <span class="import-step-number">2</span>
-                  <div><strong>拍照识别</strong><span>三列数据全部手写，四角标记需完整入镜</span></div>
+                  <div><strong>${isFreeform ? "校正与识别" : "拍照识别"}</strong><span>${isFreeform ? "拖动四角、数据范围和列分隔线后开始识别" : "三列数据全部手写，四角标记需完整入镜"}</span></div>
                 </div>
                 <div class="import-step">
                   <span class="import-step-number">3</span>
-                  <div><strong>核对入账</strong><span>修正红色项目后保存整月数据</span></div>
+                  <div><strong>核对入账</strong><span>${isFreeform ? "补齐上期读数并确认每一行后保存" : "修正红色项目后保存整月数据"}</span></div>
                 </div>
               </div>
 
@@ -2615,10 +2796,14 @@
                   <span class="field-label">导入账期<span class="required">*</span></span>
                   <input class="field-input" id="import-period" type="month" value="${importDraft.period}" ${importDraft.stage === "processing" ? "disabled" : ""} />
                 </label>
-                <div class="actions">
-                  <button class="button button-secondary" type="button" data-action="download-meter-template">下载模板</button>
-                  <button class="button button-primary" type="button" data-action="print-meter-template">打印 A4 模板</button>
-                </div>
+                ${
+                  isFreeform
+                    ? `<span class="field-help">纸上第二、三列填写本期累计表读数，不是本月用量。</span>`
+                    : `<div class="actions">
+                        <button class="button button-secondary" type="button" data-action="download-meter-template">下载模板</button>
+                        <button class="button button-primary" type="button" data-action="print-meter-template">打印 A4 模板</button>
+                      </div>`
+                }
               </div>
 
               ${
@@ -2635,12 +2820,14 @@
                       </div>
                     </div>
                   `
+                  : importDraft.stage === "align" && isFreeform
+                    ? renderAlignmentWorkspace()
                   : `
                     <label class="upload-zone" for="meter-import-file">
                       <span>
                         <span class="upload-icon" aria-hidden="true">识</span>
                         <strong>${importDraft.fileName ? escapeHtml(importDraft.fileName) : "拍照或选择手写表照片"}</strong>
-                        <small>支持 JPG、PNG、WebP；请保持纸张四角完整、画面清晰并尽量避免阴影</small>
+                        <small>支持 JPG、PNG、WebP；${isFreeform ? "请保持三列数据大致对齐并尽量拍到纸张边缘" : "请保持纸张四角完整、画面清晰并尽量避免阴影"}</small>
                       </span>
                       <input class="sr-only" id="meter-import-file" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" ${importDraft.stage === "processing" ? "disabled" : ""} />
                     </label>
@@ -2669,7 +2856,7 @@
                     <div class="panel-header" style="padding-inline:0">
                       <div>
                         <h2 class="panel-title">识别结果核对</h2>
-                        <p class="panel-subtitle">原图切片与识别值并排显示；黄色或红色行必须勾选“已人工核对”</p>
+                        <p class="panel-subtitle">${isFreeform ? "本期读数来自照片，上期读数自动沿用历史；缺失时必须补录。每行均需人工确认。" : "原图切片与识别值并排显示；黄色或红色行必须勾选“已人工核对”"}</p>
                       </div>
                     </div>
                     <div class="review-summary" aria-label="识别汇总">
@@ -2680,15 +2867,16 @@
                     </div>
                     <div class="data-table-wrap">
                       <table class="data-table">
-                        <thead><tr><th>行</th><th>房间号</th><th>用水量</th><th>用电量</th><th>费用</th><th>状态与核对</th></tr></thead>
+                        <thead><tr>${isFreeform ? "<th>行</th><th>房间号</th><th>水表读数</th><th>电表读数</th><th>用量与费用</th><th>状态与核对</th>" : "<th>行</th><th>房间号</th><th>用水量</th><th>用电量</th><th>费用</th><th>状态与核对</th>"}</tr></thead>
                         <tbody>
-                          ${importDraft.rows.map((row, index) => importReviewRow(row, index, analysis.rows[index])).join("")}
+                          ${importDraft.rows.map((row, index) => isFreeform ? freeformReviewRow(row, index, analysis.rows[index]) : importReviewRow(row, index, analysis.rows[index])).join("")}
                         </tbody>
                       </table>
                     </div>
                     <p class="form-error" id="meter-import-error" role="alert">${analysis.invalid ? `还有 ${analysis.invalid} 行存在错误，请修正后再导入。` : analysis.needsReview ? `还有 ${analysis.needsReview} 行需要人工核对。` : ""}</p>
                     <div class="form-actions">
                       <button class="button button-secondary" type="button" data-action="discard-meter-import">放弃本次识别</button>
+                      ${isFreeform ? '<button class="button button-secondary" type="button" data-action="add-freeform-row">＋ 增加一行</button>' : ""}
                       <button class="button button-primary" type="button" data-action="commit-meter-import" ${analysis.invalid || analysis.needsReview || !analysis.valid ? "disabled" : ""}>确认导入 ${analysis.valid} 条</button>
                     </div>
                   `
@@ -2696,6 +2884,38 @@
               }
             </div>
           </section>
+        `;
+      }
+
+      function renderAlignmentWorkspace() {
+        return `
+          <div class="notice">
+            <strong>请先校正识别区域：</strong>
+            <span>绿色四角框住纸张；橙色横线夹住数据行；蓝色竖线分别位于三列之间。</span>
+          </div>
+          <div class="alignment-workspace">
+            <div class="alignment-canvas-wrap">
+              <canvas class="alignment-canvas" id="alignment-canvas" aria-label="手写表照片校正画布"></canvas>
+            </div>
+            <aside class="alignment-help">
+              <h3>拖动彩色控制点</h3>
+              <ol>
+                <li>绿色圆点对准纸张四角。</li>
+                <li>橙色横线从第一行数据上方到最后一行下方。</li>
+                <li>蓝色竖线放在房号、水表、电表三列之间。</li>
+              </ol>
+              <div class="alignment-legend" aria-hidden="true">
+                <span><i style="--legend-color:#35b779"></i>纸张四角</span>
+                <span><i style="--legend-color:#ee9b32"></i>数据上下边界</span>
+                <span><i style="--legend-color:#3487c8"></i>列分隔线</span>
+              </div>
+              <div class="form-actions" style="display:grid;margin-top:16px">
+                <button class="button button-secondary" type="button" data-action="reset-freeform-alignment">自动重新定位</button>
+                <button class="button button-primary" type="button" data-action="recognize-freeform">开始本地识别</button>
+              </div>
+            </aside>
+          </div>
+          <p class="privacy-line">照片仅保存在本次页面内存中，刷新或离开后即清除，不写入本地业务数据。</p>
         `;
       }
 
@@ -2730,6 +2950,69 @@
         `;
       }
 
+      function freeformReviewRow(row, index, result) {
+        if (row.skipped) return "";
+        const statusClass = result.invalid ? "error" : result.needsReview ? "warning" : "ok";
+        const statusText = result.invalid
+          ? result.errors[0]
+          : result.needsReview
+            ? "等待人工确认"
+            : result.existing
+              ? "有效 · 将更新"
+              : "有效 · 将新增";
+        return `
+          <tr>
+            <td data-label="行">
+              ${index + 1}
+              <div class="freeform-row-actions">
+                <button class="button button-danger button-small" type="button" data-action="remove-freeform-row" data-row-index="${index}" aria-label="删除第 ${index + 1} 行">删除</button>
+              </div>
+            </td>
+            ${importFieldCell(row, index, "roomNumber", "房间号", result.fieldErrors.roomNumber)}
+            <td class="ocr-cell" data-label="水表读数">
+              ${row.currentWater.image ? `<img class="ocr-thumb" src="${row.currentWater.image}" alt="第 ${index + 1} 行水表原图切片" />` : ""}
+              <div class="reading-pair">
+                <label>上期
+                  <input class="ocr-input${result.fieldErrors.prevWater ? " invalid" : ""}" data-import-row="${index}" data-import-field="prevWater" value="${escapeHtml(row.prevWater.value)}" inputmode="decimal" aria-label="第 ${index + 1} 行上期水表读数" />
+                </label>
+                <label>本期
+                  <input class="ocr-input${result.fieldErrors.currentWater ? " invalid" : ""}" data-import-row="${index}" data-import-field="currentWater" value="${escapeHtml(row.currentWater.value)}" inputmode="decimal" aria-label="第 ${index + 1} 行本期水表读数" />
+                </label>
+              </div>
+              <span class="ocr-confidence">${escapeHtml(result.fieldErrors.prevWater || result.fieldErrors.currentWater || `本期识别可信度 ${formatConfidence(row.currentWater.confidence)}`)}</span>
+            </td>
+            <td class="ocr-cell" data-label="电表读数">
+              ${row.currentElectric.image ? `<img class="ocr-thumb" src="${row.currentElectric.image}" alt="第 ${index + 1} 行电表原图切片" />` : ""}
+              <div class="reading-pair">
+                <label>上期
+                  <input class="ocr-input${result.fieldErrors.prevElectric ? " invalid" : ""}" data-import-row="${index}" data-import-field="prevElectric" value="${escapeHtml(row.prevElectric.value)}" inputmode="decimal" aria-label="第 ${index + 1} 行上期电表读数" />
+                </label>
+                <label>本期
+                  <input class="ocr-input${result.fieldErrors.currentElectric ? " invalid" : ""}" data-import-row="${index}" data-import-field="currentElectric" value="${escapeHtml(row.currentElectric.value)}" inputmode="decimal" aria-label="第 ${index + 1} 行本期电表读数" />
+                </label>
+              </div>
+              <span class="ocr-confidence">${escapeHtml(result.fieldErrors.prevElectric || result.fieldErrors.currentElectric || `本期识别可信度 ${formatConfidence(row.currentElectric.confidence)}`)}</span>
+            </td>
+            <td data-label="用量与费用">
+              <span class="table-primary">¥${formatMoney(result.waterCharge + result.electricCharge)}</span>
+              <small style="display:block;color:var(--slate-500);margin-top:3px">水 ${Number(result.waterUsage || 0).toFixed(2)} 吨 · ¥${formatMoney(result.waterCharge)}</small>
+              <small style="display:block;color:var(--slate-500);margin-top:3px">电 ${Number(result.electricUsage || 0).toFixed(2)} 度 · ¥${formatMoney(result.electricCharge)}</small>
+            </td>
+            <td data-label="状态与核对">
+              <span class="review-status ${statusClass}">${escapeHtml(statusText)}</span>
+              <label class="row-check" style="margin-top:8px">
+                <input type="checkbox" data-import-confirm="${index}" ${row.confirmed ? "checked" : ""} />
+                已核对房号和全部读数
+              </label>
+            </td>
+          </tr>
+        `;
+      }
+
+      function formatConfidence(value) {
+        return Number.isFinite(value) ? `${Math.round(value * 100)}%` : "待人工填写";
+      }
+
       function importFieldCell(row, index, field, label, error) {
         const data = row[field];
         const confidence = Number.isFinite(data.confidence)
@@ -2753,6 +3036,7 @@
       }
 
       function analyzeImportRows() {
+        if (importDraft.mode === "freeform") return analyzeFreeformRows();
         const active = importDraft.rows.filter((row) => !row.skipped);
         const numberCounts = new Map();
         for (const row of active) {
@@ -2814,6 +3098,140 @@
           invalid: considered.filter((row) => row.invalid).length,
           needsReview: considered.filter((row) => row.needsReview).length,
           updates: considered.filter((row) => !row.invalid && row.existing).length,
+        };
+      }
+
+      function analyzeFreeformRows() {
+        const active = importDraft.rows.filter((row) => !row.skipped);
+        const numberCounts = new Map();
+        for (const row of active) {
+          const number = String(row.roomNumber.value || "").trim();
+          if (number) numberCounts.set(number, (numberCounts.get(number) || 0) + 1);
+        }
+        const readingPattern = /^\d{1,9}(?:\.\d{1,2})?$/;
+        const rows = importDraft.rows.map((row) => {
+          const fieldErrors = {};
+          if (row.skipped) {
+            return {
+              invalid: false,
+              needsReview: false,
+              errors: [],
+              fieldErrors,
+              existing: false,
+              waterUsage: 0,
+              electricUsage: 0,
+              waterCharge: 0,
+              electricCharge: 0,
+            };
+          }
+          const number = String(row.roomNumber.value || "").trim();
+          const room = state.rooms.find((candidate) => String(candidate.number) === number);
+          if (!number) fieldErrors.roomNumber = "房间号不能为空";
+          else if (!/^\d{1,12}$/.test(number)) fieldErrors.roomNumber = "房间号只能包含数字";
+          else if (!room) fieldErrors.roomNumber = "系统中不存在此房间";
+          else if (numberCounts.get(number) > 1) fieldErrors.roomNumber = "本次导入房间号重复";
+
+          const values = {};
+          for (const field of ["prevWater", "currentWater", "prevElectric", "currentElectric"]) {
+            const text = String(row[field]?.value || "").trim();
+            values[field] = Number(text);
+            if (!readingPattern.test(text) || !Number.isFinite(values[field]) || values[field] < 0) {
+              fieldErrors[field] = field.startsWith("prev")
+                ? "缺少有效上期读数，请补录"
+                : "请输入有效的本期读数";
+            }
+          }
+          if (
+            !fieldErrors.prevWater &&
+            !fieldErrors.currentWater &&
+            values.currentWater < values.prevWater
+          ) {
+            fieldErrors.currentWater = "本期水表不能低于上期";
+          }
+          if (
+            !fieldErrors.prevElectric &&
+            !fieldErrors.currentElectric &&
+            values.currentElectric < values.prevElectric
+          ) {
+            fieldErrors.currentElectric = "本期电表不能低于上期";
+          }
+          const errors = Object.values(fieldErrors);
+          const existing = room
+            ? state.meterRecords.some(
+                (record) => record.roomId === room.id && record.period === importDraft.period,
+              )
+            : false;
+          const waterUsage = errors.length
+            ? 0
+            : Number((values.currentWater - values.prevWater).toFixed(2));
+          const electricUsage = errors.length
+            ? 0
+            : Number((values.currentElectric - values.prevElectric).toFixed(2));
+          return {
+            invalid: Boolean(errors.length),
+            needsReview: !errors.length && !row.confirmed,
+            errors,
+            fieldErrors,
+            existing,
+            room,
+            prevWater: values.prevWater,
+            currentWater: values.currentWater,
+            prevElectric: values.prevElectric,
+            currentElectric: values.currentElectric,
+            waterUsage,
+            electricUsage,
+            waterCharge: Number((waterUsage * Number(state.settings.waterRate)).toFixed(2)),
+            electricCharge: Number((electricUsage * Number(state.settings.electricRate)).toFixed(2)),
+          };
+        });
+        const considered = rows.filter((_, index) => !importDraft.rows[index].skipped);
+        return {
+          rows,
+          valid: considered.filter((row) => !row.invalid && !row.needsReview).length,
+          invalid: considered.filter((row) => row.invalid).length,
+          needsReview: considered.filter((row) => row.needsReview).length,
+          updates: considered.filter((row) => !row.invalid && row.existing).length,
+        };
+      }
+
+      function applyPreviousReadingToRow(row) {
+        const room = state.rooms.find(
+          (candidate) => String(candidate.number) === String(row.roomNumber?.value || "").trim(),
+        );
+        if (!room) {
+          if (row.previousAuto) {
+            row.prevWater.value = "";
+            row.prevElectric.value = "";
+          }
+          return;
+        }
+        const previous = latestReading(room.id, importDraft.period);
+        if (previous) {
+          if (!row.prevWater.value || row.previousAuto) {
+            row.prevWater.value = String(previous.currentWater);
+          }
+          if (!row.prevElectric.value || row.previousAuto) {
+            row.prevElectric.value = String(previous.currentElectric);
+          }
+          row.previousAuto = true;
+        } else if (row.previousAuto) {
+          row.prevWater.value = "";
+          row.prevElectric.value = "";
+          row.previousAuto = false;
+        }
+      }
+
+      function createBlankFreeformRow() {
+        const field = () => ({ value: "", confidence: NaN, image: "", needsReview: true });
+        return {
+          confirmed: false,
+          skipped: false,
+          previousAuto: false,
+          roomNumber: field(),
+          currentWater: field(),
+          currentElectric: field(),
+          prevWater: field(),
+          prevElectric: field(),
         };
       }
 
@@ -2945,7 +3363,621 @@
         anchor.click();
       }
 
+      async function prepareFreeformImage(file) {
+        if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type)) {
+          showToast("请选择 JPG、PNG 或 WebP 图片");
+          return;
+        }
+        try {
+          const image = await loadImageFile(file);
+          importDraft = {
+            ...importDraft,
+            stage: "align",
+            progress: 0,
+            progressText: "",
+            rows: [],
+            fileName: file.name,
+            result: null,
+            sourceImage: image,
+            alignment: detectFreeformPaper(image),
+            dragTarget: null,
+          };
+          renderView();
+          showToast("请校正纸张边缘、数据范围和三列位置");
+        } catch (error) {
+          showToast(error?.message || "照片读取失败，请重新选择");
+        }
+      }
+
+      function detectFreeformPaper(image) {
+        const sample = document.createElement("canvas");
+        sample.width = Math.min(220, image.naturalWidth);
+        sample.height = Math.max(120, Math.round(sample.width * image.naturalHeight / image.naturalWidth));
+        const ctx = sample.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(image, 0, 0, sample.width, sample.height);
+        const pixels = ctx.getImageData(0, 0, sample.width, sample.height).data;
+        const mask = new Uint8Array(sample.width * sample.height);
+        for (let index = 0; index < mask.length; index += 1) {
+          const offset = index * 4;
+          const light = pixels[offset] * 0.299 + pixels[offset + 1] * 0.587 + pixels[offset + 2] * 0.114;
+          mask[index] = light > 112 ? 1 : 0;
+        }
+        const visited = new Uint8Array(mask.length);
+        let largest = [];
+        for (let start = 0; start < mask.length; start += 1) {
+          if (!mask[start] || visited[start]) continue;
+          const component = [];
+          const queue = [start];
+          visited[start] = 1;
+          for (let cursor = 0; cursor < queue.length; cursor += 1) {
+            const index = queue[cursor];
+            component.push(index);
+            const x = index % sample.width;
+            const y = Math.floor(index / sample.width);
+            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (nx < 0 || nx >= sample.width || ny < 0 || ny >= sample.height) continue;
+              const next = ny * sample.width + nx;
+              if (mask[next] && !visited[next]) {
+                visited[next] = 1;
+                queue.push(next);
+              }
+            }
+          }
+          if (component.length > largest.length) largest = component;
+        }
+        let corners = [
+          { x: 0.025, y: 0.025 },
+          { x: 0.975, y: 0.025 },
+          { x: 0.975, y: 0.975 },
+          { x: 0.025, y: 0.975 },
+        ];
+        if (largest.length > mask.length * 0.16) {
+          const points = largest.map((index) => ({
+            x: (index % sample.width) / sample.width,
+            y: Math.floor(index / sample.width) / sample.height,
+          }));
+          corners = [
+            points.reduce((best, point) => point.x + point.y < best.x + best.y ? point : best),
+            points.reduce((best, point) => point.x - point.y > best.x - best.y ? point : best),
+            points.reduce((best, point) => point.x + point.y > best.x + best.y ? point : best),
+            points.reduce((best, point) => point.x - point.y < best.x - best.y ? point : best),
+          ].map((point) => ({
+            x: Math.max(0.005, Math.min(0.995, point.x)),
+            y: Math.max(0.005, Math.min(0.995, point.y)),
+          }));
+        }
+        return {
+          corners,
+          dataTop: 0.09,
+          dataBottom: 0.92,
+          columnOne: 0.27,
+          columnTwo: 0.54,
+        };
+      }
+
+      function alignmentPoint(u, v) {
+        const [topLeft, topRight, bottomRight, bottomLeft] = importDraft.alignment.corners;
+        return {
+          x:
+            (1 - u) * (1 - v) * topLeft.x +
+            u * (1 - v) * topRight.x +
+            u * v * bottomRight.x +
+            (1 - u) * v * bottomLeft.x,
+          y:
+            (1 - u) * (1 - v) * topLeft.y +
+            u * (1 - v) * topRight.y +
+            u * v * bottomRight.y +
+            (1 - u) * v * bottomLeft.y,
+        };
+      }
+
+      function alignmentUvAtPoint(x, y) {
+        let u = 0.5;
+        let v = 0.5;
+        for (let iteration = 0; iteration < 8; iteration += 1) {
+          const point = alignmentPoint(u, v);
+          const epsilon = 0.001;
+          const duPoint = alignmentPoint(Math.min(1, u + epsilon), v);
+          const dvPoint = alignmentPoint(u, Math.min(1, v + epsilon));
+          const ax = (duPoint.x - point.x) / epsilon;
+          const ay = (duPoint.y - point.y) / epsilon;
+          const bx = (dvPoint.x - point.x) / epsilon;
+          const by = (dvPoint.y - point.y) / epsilon;
+          const determinant = ax * by - ay * bx;
+          if (Math.abs(determinant) < 1e-8) break;
+          const dx = x - point.x;
+          const dy = y - point.y;
+          u += (dx * by - dy * bx) / determinant;
+          v += (dy * ax - dx * ay) / determinant;
+          u = Math.max(0, Math.min(1, u));
+          v = Math.max(0, Math.min(1, v));
+        }
+        return { u, v };
+      }
+
+      function alignmentHandles() {
+        if (!importDraft.alignment) return [];
+        const alignment = importDraft.alignment;
+        return [
+          ...alignment.corners.map((point, index) => ({ type: "corner", index, point })),
+          { type: "dataTop", point: alignmentPoint(0.5, alignment.dataTop) },
+          { type: "dataBottom", point: alignmentPoint(0.5, alignment.dataBottom) },
+          { type: "columnOne", point: alignmentPoint(alignment.columnOne, (alignment.dataTop + alignment.dataBottom) / 2) },
+          { type: "columnTwo", point: alignmentPoint(alignment.columnTwo, (alignment.dataTop + alignment.dataBottom) / 2) },
+        ];
+      }
+
+      function drawAlignmentEditor() {
+        const canvas = document.getElementById("alignment-canvas");
+        const image = importDraft.sourceImage;
+        if (!canvas || !image || !importDraft.alignment) return;
+        const maxWidth = 980;
+        const scale = Math.min(1, maxWidth / image.naturalWidth);
+        canvas.width = Math.max(320, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(240, Math.round(image.naturalHeight * scale));
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const toCanvas = (point) => ({ x: point.x * canvas.width, y: point.y * canvas.height });
+        const drawGuide = (from, to, color, width = 3) => {
+          const start = toCanvas(from);
+          const end = toCanvas(to);
+          ctx.beginPath();
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(end.x, end.y);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.stroke();
+        };
+        const corners = importDraft.alignment.corners;
+        for (let index = 0; index < 4; index += 1) {
+          drawGuide(corners[index], corners[(index + 1) % 4], "#35b779", 4);
+        }
+        drawGuide(alignmentPoint(0, importDraft.alignment.dataTop), alignmentPoint(1, importDraft.alignment.dataTop), "#ee9b32");
+        drawGuide(alignmentPoint(0, importDraft.alignment.dataBottom), alignmentPoint(1, importDraft.alignment.dataBottom), "#ee9b32");
+        drawGuide(alignmentPoint(importDraft.alignment.columnOne, importDraft.alignment.dataTop), alignmentPoint(importDraft.alignment.columnOne, importDraft.alignment.dataBottom), "#3487c8");
+        drawGuide(alignmentPoint(importDraft.alignment.columnTwo, importDraft.alignment.dataTop), alignmentPoint(importDraft.alignment.columnTwo, importDraft.alignment.dataBottom), "#3487c8");
+        alignmentHandles().forEach((handle) => {
+          const point = toCanvas(handle.point);
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, handle.type === "corner" ? 10 : 8, 0, Math.PI * 2);
+          ctx.fillStyle = handle.type === "corner"
+            ? "#35b779"
+            : handle.type.startsWith("data")
+              ? "#ee9b32"
+              : "#3487c8";
+          ctx.fill();
+          ctx.strokeStyle = "white";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        });
+      }
+
+      function hitAlignmentHandle(canvas, clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (clientX - rect.left) / rect.width;
+        const y = (clientY - rect.top) / rect.height;
+        let closest = null;
+        for (const handle of alignmentHandles()) {
+          const distance = Math.hypot(handle.point.x - x, handle.point.y - y);
+          if (distance < 0.045 && (!closest || distance < closest.distance)) {
+            closest = { ...handle, distance };
+          }
+        }
+        return closest;
+      }
+
+      async function recognizeFreeformSheet() {
+        if (!importDraft.sourceImage || !importDraft.alignment) {
+          showToast("请先选择手写表照片");
+          return;
+        }
+        importDraft.stage = "processing";
+        importDraft.progress = 3;
+        importDraft.progressText = "正在拉正纸张并淡化阴影";
+        renderView();
+        try {
+          const rectified = await rectifyFreeformImage(
+            importDraft.sourceImage,
+            importDraft.alignment.corners,
+          );
+          updateImportProgress(22, "正在检测三列手写数据行");
+          const bands = detectFreeformRows(rectified, importDraft.alignment);
+          if (!bands.length) {
+            throw new Error("未检测到数据行，请返回后调整橙色数据范围");
+          }
+          updateImportProgress(30, "正在加载本地手写数字模型");
+          const session = await ensureOcrSession();
+          const rows = [];
+          for (let index = 0; index < bands.length; index += 1) {
+            const band = bands[index];
+            const row = {
+              confirmed: false,
+              skipped: false,
+              previousAuto: false,
+              roomNumber: await recognizeFreeformField(rectified, band, 0, importDraft.alignment.columnOne, session, "room"),
+              currentWater: await recognizeFreeformField(rectified, band, importDraft.alignment.columnOne, importDraft.alignment.columnTwo, session, "reading"),
+              currentElectric: await recognizeFreeformField(rectified, band, importDraft.alignment.columnTwo, 1, session, "reading"),
+              prevWater: { value: "", confidence: NaN, image: "", needsReview: false },
+              prevElectric: { value: "", confidence: NaN, image: "", needsReview: false },
+            };
+            applyPreviousReadingToRow(row);
+            rows.push(row);
+            updateImportProgress(
+              30 + ((index + 1) / bands.length) * 66,
+              `正在识别第 ${index + 1} 行，共 ${bands.length} 行`,
+            );
+            await nextFrame();
+          }
+          importDraft.rows = rows;
+          importDraft.stage = "review";
+          importDraft.progress = 100;
+          importDraft.progressText = "识别完成，请逐行核对";
+          renderView();
+          document.querySelector("[data-import-row]")?.focus();
+          showToast(`已识别 ${rows.length} 行，请逐项核对`);
+        } catch (error) {
+          console.error("自由手写表识别失败", error);
+          importDraft.stage = "align";
+          importDraft.rows = [];
+          renderView();
+          showToast(error?.message || "识别失败，请调整校正线后重试");
+        }
+      }
+
+      async function rectifyFreeformImage(image, normalizedCorners) {
+        const source = document.createElement("canvas");
+        const sourceScale = Math.min(1, 1800 / image.naturalWidth);
+        source.width = Math.round(image.naturalWidth * sourceScale);
+        source.height = Math.round(image.naturalHeight * sourceScale);
+        const sourceCtx = source.getContext("2d", { willReadFrequently: true });
+        sourceCtx.drawImage(image, 0, 0, source.width, source.height);
+        const sourceCorners = normalizedCorners.map((point) => [
+          point.x * source.width,
+          point.y * source.height,
+        ]);
+        const topWidth = Math.hypot(
+          sourceCorners[1][0] - sourceCorners[0][0],
+          sourceCorners[1][1] - sourceCorners[0][1],
+        );
+        const bottomWidth = Math.hypot(
+          sourceCorners[2][0] - sourceCorners[3][0],
+          sourceCorners[2][1] - sourceCorners[3][1],
+        );
+        const leftHeight = Math.hypot(
+          sourceCorners[3][0] - sourceCorners[0][0],
+          sourceCorners[3][1] - sourceCorners[0][1],
+        );
+        const rightHeight = Math.hypot(
+          sourceCorners[2][0] - sourceCorners[1][0],
+          sourceCorners[2][1] - sourceCorners[1][1],
+        );
+        const output = document.createElement("canvas");
+        output.width = Math.max(760, Math.min(1350, Math.round((topWidth + bottomWidth) / 2)));
+        output.height = Math.max(
+          900,
+          Math.min(1900, Math.round(output.width * ((leftHeight + rightHeight) / Math.max(1, topWidth + bottomWidth)) * 2)),
+        );
+        const destinations = [
+          [0, 0],
+          [output.width - 1, 0],
+          [output.width - 1, output.height - 1],
+          [0, output.height - 1],
+        ];
+        const homography = solveHomography(destinations, sourceCorners);
+        const sourcePixels = sourceCtx.getImageData(0, 0, source.width, source.height);
+        const outputCtx = output.getContext("2d", { willReadFrequently: true });
+        const outputPixels = outputCtx.createImageData(output.width, output.height);
+        for (let y = 0; y < output.height; y += 1) {
+          for (let x = 0; x < output.width; x += 1) {
+            const denominator = homography[6] * x + homography[7] * y + 1;
+            const sx = Math.round((homography[0] * x + homography[1] * y + homography[2]) / denominator);
+            const sy = Math.round((homography[3] * x + homography[4] * y + homography[5]) / denominator);
+            const target = (y * output.width + x) * 4;
+            if (sx >= 0 && sx < source.width && sy >= 0 && sy < source.height) {
+              const origin = (sy * source.width + sx) * 4;
+              const gray =
+                sourcePixels.data[origin] * 0.299 +
+                sourcePixels.data[origin + 1] * 0.587 +
+                sourcePixels.data[origin + 2] * 0.114;
+              const enhanced = Math.max(0, Math.min(255, (gray - 120) * 1.18 + 150));
+              outputPixels.data[target] = enhanced;
+              outputPixels.data[target + 1] = enhanced;
+              outputPixels.data[target + 2] = enhanced;
+              outputPixels.data[target + 3] = 255;
+            } else {
+              outputPixels.data[target] = 255;
+              outputPixels.data[target + 1] = 255;
+              outputPixels.data[target + 2] = 255;
+              outputPixels.data[target + 3] = 255;
+            }
+          }
+          if (y % 160 === 0) await nextFrame();
+        }
+        outputCtx.putImageData(outputPixels, 0, 0);
+        return output;
+      }
+
+      function otsuThreshold(gray) {
+        const histogram = new Uint32Array(256);
+        gray.forEach((value) => { histogram[Math.max(0, Math.min(255, Math.round(value)))] += 1; });
+        let totalSum = 0;
+        for (let index = 0; index < 256; index += 1) totalSum += index * histogram[index];
+        let backgroundWeight = 0;
+        let backgroundSum = 0;
+        let bestVariance = -1;
+        let threshold = 150;
+        for (let index = 0; index < 256; index += 1) {
+          backgroundWeight += histogram[index];
+          if (!backgroundWeight) continue;
+          const foregroundWeight = gray.length - backgroundWeight;
+          if (!foregroundWeight) break;
+          backgroundSum += index * histogram[index];
+          const backgroundMean = backgroundSum / backgroundWeight;
+          const foregroundMean = (totalSum - backgroundSum) / foregroundWeight;
+          const variance =
+            backgroundWeight *
+            foregroundWeight *
+            (backgroundMean - foregroundMean) *
+            (backgroundMean - foregroundMean);
+          if (variance > bestVariance) {
+            bestVariance = variance;
+            threshold = index;
+          }
+        }
+        return Math.max(72, Math.min(205, threshold));
+      }
+
+      function grayRegion(canvas, x, y, width, height) {
+        const safeX = Math.max(0, Math.round(x));
+        const safeY = Math.max(0, Math.round(y));
+        const safeWidth = Math.max(1, Math.min(canvas.width - safeX, Math.round(width)));
+        const safeHeight = Math.max(1, Math.min(canvas.height - safeY, Math.round(height)));
+        const pixels = canvas
+          .getContext("2d", { willReadFrequently: true })
+          .getImageData(safeX, safeY, safeWidth, safeHeight);
+        const gray = new Float32Array(safeWidth * safeHeight);
+        for (let index = 0; index < gray.length; index += 1) {
+          const offset = index * 4;
+          gray[index] =
+            pixels.data[offset] * 0.299 +
+            pixels.data[offset + 1] * 0.587 +
+            pixels.data[offset + 2] * 0.114;
+        }
+        return { x: safeX, y: safeY, width: safeWidth, height: safeHeight, gray };
+      }
+
+      function detectFreeformRows(canvas, alignment) {
+        const left = canvas.width * 0.03;
+        const right = canvas.width * Math.max(0.08, alignment.columnOne - 0.015);
+        const top = canvas.height * alignment.dataTop;
+        const bottom = canvas.height * alignment.dataBottom;
+        const region = grayRegion(canvas, left, top, right - left, bottom - top);
+        const threshold = otsuThreshold(region.gray);
+        const projection = new Uint32Array(region.height);
+        for (let y = 0; y < region.height; y += 1) {
+          for (let x = 0; x < region.width; x += 1) {
+            if (region.gray[y * region.width + x] < threshold - 4) projection[y] += 1;
+          }
+        }
+        const activeThreshold = Math.max(2, Math.round(region.width * 0.007));
+        const raw = [];
+        let start = -1;
+        for (let y = 0; y <= projection.length; y += 1) {
+          if (y < projection.length && projection[y] >= activeThreshold) {
+            if (start < 0) start = y;
+          } else if (start >= 0) {
+            raw.push({ top: start, bottom: y - 1 });
+            start = -1;
+          }
+        }
+        const mergeGap = Math.max(7, Math.round(canvas.height * 0.012));
+        const merged = [];
+        for (const band of raw) {
+          const previous = merged[merged.length - 1];
+          if (previous && band.top - previous.bottom <= mergeGap) previous.bottom = band.bottom;
+          else merged.push({ ...band });
+        }
+        const filtered = merged
+          .filter((band) => band.bottom - band.top >= Math.max(6, canvas.height * 0.004))
+          .filter((band) => band.bottom - band.top <= canvas.height * 0.075)
+          .slice(0, 40);
+        const centers = filtered.map((band) => (band.top + band.bottom) / 2);
+        const gaps = centers
+          .slice(1)
+          .map((center, index) => center - centers[index])
+          .sort((a, b) => a - b);
+        const typicalGap = gaps.length
+          ? gaps[Math.floor(gaps.length / 2)]
+          : Math.max(48, canvas.height * 0.045);
+        return centers.map((center, index) => ({
+          top: Math.max(
+            region.y,
+            region.y + (index ? (centers[index - 1] + center) / 2 : center - typicalGap / 2),
+          ),
+          bottom: Math.min(
+            region.y + region.height,
+            region.y + (
+              index < centers.length - 1
+                ? (center + centers[index + 1]) / 2
+                : center + typicalGap / 2
+            ),
+          ),
+        }));
+      }
+
+      async function recognizeFreeformField(canvas, band, startRatio, endRatio, session, kind) {
+        const margin = canvas.width * 0.012;
+        const x = canvas.width * startRatio + margin;
+        const width = canvas.width * (endRatio - startRatio) - margin * 2;
+        const region = grayRegion(canvas, x, band.top, width, band.bottom - band.top);
+        const threshold = otsuThreshold(region.gray);
+        const projection = new Uint32Array(region.width);
+        const bounds = [];
+        let minY = region.height;
+        let maxY = -1;
+        for (let px = 0; px < region.width; px += 1) {
+          for (let py = 0; py < region.height; py += 1) {
+            if (region.gray[py * region.width + px] < threshold - 3) {
+              projection[px] += 1;
+              minY = Math.min(minY, py);
+              maxY = Math.max(maxY, py);
+            }
+          }
+        }
+        let start = -1;
+        for (let px = 0; px <= projection.length; px += 1) {
+          if (px < projection.length && projection[px] > 0) {
+            if (start < 0) start = px;
+          } else if (start >= 0) {
+            bounds.push({ left: start, right: px - 1 });
+            start = -1;
+          }
+        }
+        const fieldCanvas = document.createElement("canvas");
+        fieldCanvas.width = 336;
+        fieldCanvas.height = 102;
+        fieldCanvas.getContext("2d").drawImage(
+          canvas,
+          region.x,
+          region.y,
+          region.width,
+          region.height,
+          0,
+          0,
+          fieldCanvas.width,
+          fieldCanvas.height,
+        );
+        if (!bounds.length || maxY < minY) {
+          return {
+            value: "",
+            confidence: NaN,
+            image: fieldCanvas.toDataURL("image/jpeg", 0.74),
+            needsReview: true,
+          };
+        }
+        const groups = [];
+        const maxDigitWidth = Math.max(12, (maxY - minY + 1) * 0.75);
+        for (const bound of bounds) {
+          const runWidth = bound.right - bound.left + 1;
+          if (runWidth > maxDigitWidth * 1.25) {
+            const pieces = Math.max(2, Math.round(runWidth / maxDigitWidth));
+            for (let piece = 0; piece < pieces; piece += 1) {
+              groups.push({
+                left: Math.round(bound.left + (runWidth * piece) / pieces),
+                right: Math.round(bound.left + (runWidth * (piece + 1)) / pieces - 1),
+                forcedSplit: true,
+              });
+            }
+          } else {
+            groups.push(bound);
+          }
+        }
+        const output = [];
+        let uncertain = false;
+        for (const group of groups) {
+          let groupMinY = region.height;
+          let groupMaxY = -1;
+          let ink = 0;
+          for (let px = group.left; px <= group.right; px += 1) {
+            for (let py = 0; py < region.height; py += 1) {
+              if (region.gray[py * region.width + px] < threshold - 3) {
+                groupMinY = Math.min(groupMinY, py);
+                groupMaxY = Math.max(groupMaxY, py);
+                ink += 1;
+              }
+            }
+          }
+          if (!ink) continue;
+          const groupWidth = group.right - group.left + 1;
+          const groupHeight = groupMaxY - groupMinY + 1;
+          if (
+            kind !== "room" &&
+            groupWidth <= Math.max(7, region.height * 0.18) &&
+            groupHeight <= region.height * 0.28 &&
+            groupMinY > region.height * 0.52
+          ) {
+            output.push({ digit: ".", confidence: 0.92 });
+            continue;
+          }
+          const digitCanvas = document.createElement("canvas");
+          digitCanvas.width = groupWidth + 24;
+          digitCanvas.height = groupHeight + 24;
+          const digitCtx = digitCanvas.getContext("2d");
+          digitCtx.fillStyle = "white";
+          digitCtx.fillRect(0, 0, digitCanvas.width, digitCanvas.height);
+          digitCtx.drawImage(
+            canvas,
+            region.x + group.left,
+            region.y + groupMinY,
+            groupWidth,
+            groupHeight,
+            12,
+            12,
+            groupWidth,
+            groupHeight,
+          );
+          const result = await recognizeDigitBox(
+            digitCanvas,
+            { x: 0, y: 0, width: digitCanvas.width, height: digitCanvas.height },
+            1,
+            session,
+          );
+          if (result.digit !== null) output.push(result);
+          if (group.forcedSplit || result.confidence < 0.72) uncertain = true;
+        }
+        let value = output.map((item) => item.digit || "").join("");
+        value = value.replace(/^\./, "0.").replace(/\.(?=.*\.)/g, "");
+        if (kind === "room") {
+          value = value.replace(/\D/g, "");
+          if (!state.rooms.some((room) => String(room.number) === value) && value) {
+            const candidates = state.rooms
+              .map((room) => String(room.number))
+              .filter((number) => Math.abs(number.length - value.length) <= 1)
+              .map((number) => ({ number, distance: editDistance(number, value) }))
+              .sort((a, b) => a.distance - b.distance);
+            if (candidates[0]?.distance === 1 && candidates[1]?.distance !== 1) {
+              value = candidates[0].number;
+              uncertain = true;
+            }
+          }
+        }
+        const confidences = output
+          .filter((item) => item.digit !== ".")
+          .map((item) => item.confidence);
+        const confidence = confidences.length ? Math.min(...confidences) : NaN;
+        return {
+          value,
+          confidence,
+          image: fieldCanvas.toDataURL("image/jpeg", 0.74),
+          needsReview: uncertain || !Number.isFinite(confidence) || confidence < 0.72,
+        };
+      }
+
+      function editDistance(left, right) {
+        const rows = Array.from({ length: left.length + 1 }, () =>
+          Array(right.length + 1).fill(0),
+        );
+        for (let row = 0; row <= left.length; row += 1) rows[row][0] = row;
+        for (let column = 0; column <= right.length; column += 1) rows[0][column] = column;
+        for (let row = 1; row <= left.length; row += 1) {
+          for (let column = 1; column <= right.length; column += 1) {
+            rows[row][column] = Math.min(
+              rows[row - 1][column] + 1,
+              rows[row][column - 1] + 1,
+              rows[row - 1][column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1),
+            );
+          }
+        }
+        return rows[left.length][right.length];
+      }
+
       async function recognizeMeterSheet(file) {
+        if (importDraft.mode === "freeform") {
+          await prepareFreeformImage(file);
+          return;
+        }
         if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type)) {
           showToast("请选择 JPG、PNG 或 WebP 图片");
           return;
@@ -3400,7 +4432,8 @@
           );
           if (!approved) return;
         }
-        const batchId = `IMPORT-${importDraft.period.replace("-", "")}-${String(Date.now()).slice(-6)}`;
+        const isFreeform = importDraft.mode === "freeform";
+        const batchId = `${isFreeform ? "FREE" : "IMPORT"}-${importDraft.period.replace("-", "")}-${String(Date.now()).slice(-6)}`;
         let created = 0;
         let updated = 0;
         for (let index = 0; index < importDraft.rows.length; index += 1) {
@@ -3410,21 +4443,41 @@
           const existing = state.meterRecords.find(
             (record) => record.roomId === result.room.id && record.period === importDraft.period,
           );
-          const record = {
-            id: existing?.id || makeId("meter"),
-            roomId: result.room.id,
-            period: importDraft.period,
-            inputMode: "monthly-usage",
-            waterUsage: Number(result.waterUsage.toFixed(2)),
-            electricUsage: Number(result.electricUsage.toFixed(2)),
-            waterRate: Number(state.settings.waterRate),
-            electricRate: Number(state.settings.electricRate),
-            waterCharge: result.waterCharge,
-            electricCharge: result.electricCharge,
-            importBatchId: batchId,
-            templateVersion: TEMPLATE_VERSION,
-            updatedAt: new Date().toISOString(),
-          };
+          const record = isFreeform
+            ? {
+                id: existing?.id || makeId("meter"),
+                roomId: result.room.id,
+                period: importDraft.period,
+                inputMode: "freeform-reading",
+                prevWater: Number(result.prevWater.toFixed(2)),
+                currentWater: Number(result.currentWater.toFixed(2)),
+                prevElectric: Number(result.prevElectric.toFixed(2)),
+                currentElectric: Number(result.currentElectric.toFixed(2)),
+                waterUsage: Number(result.waterUsage.toFixed(2)),
+                electricUsage: Number(result.electricUsage.toFixed(2)),
+                waterRate: Number(state.settings.waterRate),
+                electricRate: Number(state.settings.electricRate),
+                waterCharge: result.waterCharge,
+                electricCharge: result.electricCharge,
+                importBatchId: batchId,
+                templateVersion: FREEFORM_TEMPLATE_VERSION,
+                updatedAt: new Date().toISOString(),
+              }
+            : {
+                id: existing?.id || makeId("meter"),
+                roomId: result.room.id,
+                period: importDraft.period,
+                inputMode: "monthly-usage",
+                waterUsage: Number(result.waterUsage.toFixed(2)),
+                electricUsage: Number(result.electricUsage.toFixed(2)),
+                waterRate: Number(state.settings.waterRate),
+                electricRate: Number(state.settings.electricRate),
+                waterCharge: result.waterCharge,
+                electricCharge: result.electricCharge,
+                importBatchId: batchId,
+                templateVersion: TEMPLATE_VERSION,
+                updatedAt: new Date().toISOString(),
+              };
           if (existing) {
             state.meterRecords = state.meterRecords.map((candidate) =>
               candidate.id === existing.id ? record : candidate,
@@ -3444,6 +4497,8 @@
             updated,
             total: created + updated,
           };
+          importDraft.sourceImage = null;
+          importDraft.alignment = null;
           renderView();
         }
       }
@@ -3476,6 +4531,12 @@
       }
 
       function meterTable(records) {
+        const sourceLabel = (record) =>
+          record.inputMode === "monthly-usage"
+            ? "固定模板导入"
+            : record.inputMode === "freeform-reading"
+              ? "自由手写导入"
+              : "手工抄表";
         return `
           <div class="data-table-wrap">
             <table class="data-table">
@@ -3487,7 +4548,7 @@
                       <tr>
                         <td data-label="账期"><span class="table-primary">${formatPeriod(record.period)}</span></td>
                         <td data-label="房间">${escapeHtml(roomNumber(record.roomId))}</td>
-                        <td data-label="来源"><span class="source-badge ${record.inputMode === "monthly-usage" ? "imported" : ""}">${record.inputMode === "monthly-usage" ? "批量导入" : "手工抄表"}</span></td>
+                        <td data-label="来源"><span class="source-badge ${record.inputMode !== "meter-reading" ? "imported" : ""}">${sourceLabel(record)}</span></td>
                         <td data-label="用水">${Number(record.waterUsage).toFixed(2)} 吨</td>
                         <td data-label="水费">¥${formatMoney(record.waterCharge)}</td>
                         <td data-label="用电">${Number(record.electricUsage).toFixed(2)} 度</td>
@@ -4722,6 +5783,63 @@
       );
       drawerOverlay.addEventListener("click", () => closeDrawer());
 
+      document.addEventListener("pointerdown", (event) => {
+        const canvas = event.target.closest?.("#alignment-canvas");
+        if (!canvas || !importDraft.alignment) return;
+        const handle = hitAlignmentHandle(canvas, event.clientX, event.clientY);
+        if (!handle) return;
+        importDraft.dragTarget = {
+          type: handle.type,
+          index: handle.index,
+          pointerId: event.pointerId,
+        };
+        canvas.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      });
+
+      document.addEventListener("pointermove", (event) => {
+        const target = importDraft.dragTarget;
+        const canvas = document.getElementById("alignment-canvas");
+        if (!target || !canvas || target.pointerId !== event.pointerId) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.max(0.002, Math.min(0.998, (event.clientX - rect.left) / rect.width));
+        const y = Math.max(0.002, Math.min(0.998, (event.clientY - rect.top) / rect.height));
+        if (target.type === "corner") {
+          importDraft.alignment.corners[target.index] = { x, y };
+        } else {
+          const { u, v } = alignmentUvAtPoint(x, y);
+          if (target.type === "dataTop") {
+            importDraft.alignment.dataTop = Math.min(
+              importDraft.alignment.dataBottom - 0.08,
+              Math.max(0.01, v),
+            );
+          } else if (target.type === "dataBottom") {
+            importDraft.alignment.dataBottom = Math.max(
+              importDraft.alignment.dataTop + 0.08,
+              Math.min(0.99, v),
+            );
+          } else if (target.type === "columnOne") {
+            importDraft.alignment.columnOne = Math.min(
+              importDraft.alignment.columnTwo - 0.08,
+              Math.max(0.08, u),
+            );
+          } else if (target.type === "columnTwo") {
+            importDraft.alignment.columnTwo = Math.max(
+              importDraft.alignment.columnOne + 0.08,
+              Math.min(0.92, u),
+            );
+          }
+        }
+        drawAlignmentEditor();
+        event.preventDefault();
+      });
+
+      document.addEventListener("pointerup", (event) => {
+        if (importDraft.dragTarget?.pointerId === event.pointerId) {
+          importDraft.dragTarget = null;
+        }
+      });
+
       document.addEventListener("click", async (event) => {
         const closeButton = event.target.closest("[data-close-dialog]");
         if (closeButton) {
@@ -4750,15 +5868,52 @@
             initializeBatchReceiptSelection(batchReceiptDraft.period);
           }
           renderView();
+        } else if (action === "set-import-mode") {
+          const mode = actionButton.dataset.mode === "freeform" ? "freeform" : "template";
+          if (mode !== importDraft.mode) {
+            importDraft = {
+              period: importDraft.period,
+              mode,
+              stage: "idle",
+              progress: 0,
+              progressText: "",
+              rows: [],
+              fileName: "",
+              result: null,
+              sourceImage: null,
+              alignment: null,
+              dragTarget: null,
+            };
+            renderView();
+          }
         } else if (action === "download-meter-template") {
           downloadTemplate();
         } else if (action === "print-meter-template") {
           openTemplatePrint();
+        } else if (action === "reset-freeform-alignment") {
+          if (importDraft.sourceImage) {
+            importDraft.alignment = detectFreeformPaper(importDraft.sourceImage);
+            drawAlignmentEditor();
+          }
+        } else if (action === "recognize-freeform") {
+          await recognizeFreeformSheet();
+        } else if (action === "add-freeform-row") {
+          importDraft.rows.push(createBlankFreeformRow());
+          renderView();
+          document.querySelector(`[data-import-row="${importDraft.rows.length - 1}"]`)?.focus();
+        } else if (action === "remove-freeform-row") {
+          const rowIndex = Number(actionButton.dataset.rowIndex);
+          if (Number.isInteger(rowIndex) && importDraft.rows[rowIndex]) {
+            importDraft.rows.splice(rowIndex, 1);
+            renderView();
+          }
         } else if (action === "discard-meter-import") {
           if (await askConfirm("确定放弃本次识别结果吗？尚未导入的数据不会保存。", "放弃识别")) {
             importDraft.rows = [];
             importDraft.stage = "idle";
             importDraft.fileName = "";
+            importDraft.sourceImage = null;
+            importDraft.alignment = null;
             renderView();
           }
         } else if (action === "commit-meter-import") {
@@ -4766,12 +5921,16 @@
         } else if (action === "new-meter-import") {
           importDraft = {
             period: importDraft.period,
+            mode: importDraft.mode,
             stage: "idle",
             progress: 0,
             progressText: "",
             rows: [],
             fileName: "",
             result: null,
+            sourceImage: null,
+            alignment: null,
+            dragTarget: null,
           };
           renderView();
         } else if (action === "add-room") {
@@ -4877,6 +6036,11 @@
             row[field].value = event.target.value.trim();
             row[field].needsReview = false;
             row[field].confidence = NaN;
+            row.confirmed = false;
+            if (field === "prevWater" || field === "prevElectric") row.previousAuto = false;
+            if (field === "roomNumber" && importDraft.mode === "freeform") {
+              applyPreviousReadingToRow(row);
+            }
             renderImportReviewInPlace();
           }
         }
@@ -4895,6 +6059,13 @@
         if (event.target.id === "import-period") {
           importDraft.period = event.target.value || CURRENT_PERIOD;
           importDraft.result = null;
+          if (importDraft.mode === "freeform") {
+            importDraft.rows.forEach((row) => {
+              row.previousAuto = true;
+              applyPreviousReadingToRow(row);
+              row.confirmed = false;
+            });
+          }
           renderView();
         }
         if (event.target.id === "meter-import-file" && event.target.files?.[0]) {
@@ -5074,7 +6245,10 @@
             id: existing?.id || makeId("meter"),
             roomId,
             period,
-            inputMode: "meter-reading",
+            inputMode:
+              existing?.inputMode === "freeform-reading"
+                ? "freeform-reading"
+                : "meter-reading",
             prevWater,
             currentWater,
             prevElectric,
@@ -5085,6 +6259,12 @@
             electricUsage,
             waterCharge: Number((waterUsage * Number(state.settings.waterRate)).toFixed(2)),
             electricCharge: Number((electricUsage * Number(state.settings.electricRate)).toFixed(2)),
+            ...(existing?.inputMode === "freeform-reading"
+              ? {
+                  importBatchId: existing.importBatchId,
+                  templateVersion: existing.templateVersion || FREEFORM_TEMPLATE_VERSION,
+                }
+              : {}),
             updatedAt: new Date().toISOString(),
           };
           state.meterRecords = existing

@@ -582,6 +582,34 @@
         font-size: 11px;
       }
 
+      .button:disabled {
+        cursor: not-allowed;
+        opacity: 0.52;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .selection-count {
+        color: var(--slate-500);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .selection-check {
+        display: inline-grid;
+        width: 18px;
+        height: 18px;
+        margin: 0;
+        place-items: center;
+        accent-color: var(--blue-700);
+        cursor: pointer;
+      }
+
+      .receipt-select-cell {
+        width: 46px;
+        text-align: center !important;
+      }
+
       .filter-input,
       .field-input,
       .field-select,
@@ -1593,6 +1621,17 @@
           display: none;
         }
 
+        .data-table td.receipt-select-cell {
+          justify-content: flex-start;
+          padding-bottom: 9px;
+          border-bottom: 1px solid var(--slate-100);
+          text-align: left !important;
+        }
+
+        .data-table td.receipt-select-cell::before {
+          content: "选择";
+        }
+
         .actions {
           flex-wrap: wrap;
         }
@@ -1845,6 +1884,7 @@
       let roomQuery = "";
       let meterPeriodFilter = CURRENT_PERIOD;
       let receiptPeriodFilter = CURRENT_PERIOD;
+      let selectedReceiptIds = new Set();
       let meterContext = { roomId: state.rooms[0]?.id || "", period: CURRENT_PERIOD };
       let receiptContext = { roomId: occupiedRooms()[0]?.id || "", period: CURRENT_PERIOD };
       let importDraft = {
@@ -3557,6 +3597,11 @@
         const receipts = state.receipts
           .filter((receipt) => !receiptPeriodFilter || receipt.period === receiptPeriodFilter)
           .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt) || b.serial.localeCompare(a.serial));
+        const visibleIds = new Set(receipts.map((receipt) => receipt.id));
+        selectedReceiptIds = new Set(
+          [...selectedReceiptIds].filter((receiptId) => visibleIds.has(receiptId)),
+        );
+        const selectedCount = selectedReceiptIds.size;
         return `
           <section class="panel">
             <div class="panel-header">
@@ -3573,6 +3618,12 @@
                   <input class="filter-input" id="receipt-filter-period" type="month" value="${receiptPeriodFilter}" />
                   <button class="button button-secondary" type="button" data-action="clear-receipt-filter">查看全部</button>
                 </div>
+                <div class="toolbar-group">
+                  <span class="selection-count" aria-live="polite">${selectedCount ? `已选择 ${selectedCount} 张收据` : "勾选收据后可批量下载"}</span>
+                  <button class="button button-primary" type="button" data-action="batch-download-receipts" ${selectedCount ? "" : "disabled"}>
+                    批量下载${selectedCount ? `（${selectedCount}）` : ""}
+                  </button>
+                </div>
               </div>
               ${receipts.length ? receiptTable(receipts) : emptyState("据", "暂无收据记录", "开具后，收据会保存在当前设备。", "开具收据", "go-receipt-create")}
             </div>
@@ -3581,15 +3632,18 @@
       }
 
       function receiptTable(receipts) {
+        const allSelected =
+          receipts.length > 0 && receipts.every((receipt) => selectedReceiptIds.has(receipt.id));
         return `
           <div class="data-table-wrap">
             <table class="data-table">
-              <thead><tr><th>收据编号</th><th>账期</th><th>房间</th><th>租客</th><th>合计</th><th>收款日期</th><th>操作</th></tr></thead>
+              <thead><tr><th class="receipt-select-cell"><input class="selection-check" id="receipt-select-all" type="checkbox" ${allSelected ? "checked" : ""} aria-label="全选当前列表中的收据" /></th><th>收据编号</th><th>账期</th><th>房间</th><th>租客</th><th>合计</th><th>收款日期</th><th>操作</th></tr></thead>
               <tbody>
                 ${receipts
                   .map(
                     (receipt) => `
                       <tr>
+                        <td class="receipt-select-cell" data-label="选择"><input class="selection-check" type="checkbox" data-receipt-select="${receipt.id}" ${selectedReceiptIds.has(receipt.id) ? "checked" : ""} aria-label="选择收据 ${escapeHtml(receipt.serial)}" /></td>
                         <td data-label="收据编号"><span class="table-primary">${escapeHtml(receipt.serial)}</span></td>
                         <td data-label="账期">${formatPeriod(receipt.period)}</td>
                         <td data-label="房间">${escapeHtml(receipt.roomNumber)}</td>
@@ -3852,7 +3906,7 @@
         return result;
       }
 
-      function downloadReceiptImage(receipt) {
+      function createReceiptImageBlob(receipt) {
         const canvas = document.getElementById("receipt-canvas");
         canvas.width = 1800;
         canvas.height = 1040;
@@ -4139,20 +4193,142 @@
         ctx.fillText(receipt.issuer || receipt.payee || state.settings.payee, 250, 978);
         ctx.fillText(receipt.payee || state.settings.payee, 1220, 978);
 
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            showToast("收据图片生成失败");
-            return;
+        return new Promise((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("收据图片生成失败"));
+          }, "image/png");
+        });
+      }
+
+      function safeDownloadName(value) {
+        return String(value || "收据").replace(/[\\/:*?"<>|]/g, "-");
+      }
+
+      function triggerBlobDownload(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = safeDownloadName(fileName);
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      }
+
+      async function downloadReceiptImage(receipt) {
+        try {
+          const blob = await createReceiptImageBlob(receipt);
+          triggerBlobDownload(blob, `${receipt.serial}-${receipt.roomNumber}.png`);
+        } catch (error) {
+          console.error(error);
+          showToast("收据图片生成失败");
+        }
+      }
+
+      function zipCrc32(bytes) {
+        let crc = 0xffffffff;
+        for (const byte of bytes) {
+          crc ^= byte;
+          for (let bit = 0; bit < 8; bit += 1) {
+            crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
           }
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = `${receipt.serial}-${receipt.roomNumber}.png`.replace(/[\\/:*?"<>|]/g, "-");
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }, "image/png");
+        }
+        return (crc ^ 0xffffffff) >>> 0;
+      }
+
+      function zipDosDateTime(date = new Date()) {
+        const year = Math.max(1980, date.getFullYear());
+        return {
+          date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+          time: (date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1),
+        };
+      }
+
+      function buildStoredZip(entries) {
+        const encoder = new TextEncoder();
+        const localParts = [];
+        const centralParts = [];
+        const { date, time } = zipDosDateTime();
+        let localOffset = 0;
+
+        entries.forEach((entry) => {
+          const nameBytes = encoder.encode(entry.name);
+          const bytes = entry.bytes;
+          const crc = zipCrc32(bytes);
+          const local = new Uint8Array(30 + nameBytes.length);
+          const localView = new DataView(local.buffer);
+          localView.setUint32(0, 0x04034b50, true);
+          localView.setUint16(4, 20, true);
+          localView.setUint16(6, 0x0800, true);
+          localView.setUint16(8, 0, true);
+          localView.setUint16(10, time, true);
+          localView.setUint16(12, date, true);
+          localView.setUint32(14, crc, true);
+          localView.setUint32(18, bytes.length, true);
+          localView.setUint32(22, bytes.length, true);
+          localView.setUint16(26, nameBytes.length, true);
+          local.set(nameBytes, 30);
+          localParts.push(local, bytes);
+
+          const central = new Uint8Array(46 + nameBytes.length);
+          const centralView = new DataView(central.buffer);
+          centralView.setUint32(0, 0x02014b50, true);
+          centralView.setUint16(4, 20, true);
+          centralView.setUint16(6, 20, true);
+          centralView.setUint16(8, 0x0800, true);
+          centralView.setUint16(10, 0, true);
+          centralView.setUint16(12, time, true);
+          centralView.setUint16(14, date, true);
+          centralView.setUint32(16, crc, true);
+          centralView.setUint32(20, bytes.length, true);
+          centralView.setUint32(24, bytes.length, true);
+          centralView.setUint16(28, nameBytes.length, true);
+          centralView.setUint32(42, localOffset, true);
+          central.set(nameBytes, 46);
+          centralParts.push(central);
+          localOffset += local.length + bytes.length;
+        });
+
+        const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+        const end = new Uint8Array(22);
+        const endView = new DataView(end.buffer);
+        endView.setUint32(0, 0x06054b50, true);
+        endView.setUint16(8, entries.length, true);
+        endView.setUint16(10, entries.length, true);
+        endView.setUint32(12, centralSize, true);
+        endView.setUint32(16, localOffset, true);
+        return new Blob([...localParts, ...centralParts, end], { type: "application/zip" });
+      }
+
+      async function downloadSelectedReceipts() {
+        const receipts = state.receipts
+          .filter((receipt) => selectedReceiptIds.has(receipt.id))
+          .sort((a, b) => a.period.localeCompare(b.period) || a.roomNumber.localeCompare(b.roomNumber));
+        if (!receipts.length) {
+          showToast("请先选择需要下载的收据");
+          return;
+        }
+        showToast(`正在生成 ${receipts.length} 张收据，请稍候`);
+        try {
+          const entries = [];
+          for (const receipt of receipts) {
+            const blob = await createReceiptImageBlob(receipt);
+            entries.push({
+              name: safeDownloadName(`${receipt.serial}-${receipt.roomNumber}.png`),
+              bytes: new Uint8Array(await blob.arrayBuffer()),
+            });
+          }
+          const periodName = receiptPeriodFilter || "全部账期";
+          triggerBlobDownload(
+            buildStoredZip(entries),
+            `${state.settings.buildingName}-${periodName}-收据-${receipts.length}张.zip`,
+          );
+          showToast(`已打包下载 ${receipts.length} 张收据`);
+        } catch (error) {
+          console.error(error);
+          showToast("批量下载失败，请重试");
+        }
       }
 
       sidebarNav.addEventListener("click", (event) => {
@@ -4255,12 +4431,15 @@
           const receipt = state.receipts.find(
             (candidate) => candidate.id === actionButton.dataset.receiptId,
           );
-          if (receipt) downloadReceiptImage(receipt);
+          if (receipt) await downloadReceiptImage(receipt);
+        } else if (action === "batch-download-receipts") {
+          await downloadSelectedReceipts();
         } else if (action === "delete-receipt") {
           const receiptId = actionButton.dataset.receiptId;
           const receipt = state.receipts.find((candidate) => candidate.id === receiptId);
           if (await askConfirm(`确定删除收据 ${receipt.serial} 吗？`)) {
             state.receipts = state.receipts.filter((candidate) => candidate.id !== receiptId);
+            selectedReceiptIds.delete(receiptId);
             saveState("收据记录已删除");
             renderView();
           }
@@ -4357,6 +4536,24 @@
         }
         if (event.target.id === "receipt-filter-period") {
           receiptPeriodFilter = event.target.value;
+          selectedReceiptIds.clear();
+          renderView();
+        }
+        if (event.target.id === "receipt-select-all") {
+          const visibleReceipts = state.receipts.filter(
+            (receipt) => !receiptPeriodFilter || receipt.period === receiptPeriodFilter,
+          );
+          if (event.target.checked) {
+            visibleReceipts.forEach((receipt) => selectedReceiptIds.add(receipt.id));
+          } else {
+            visibleReceipts.forEach((receipt) => selectedReceiptIds.delete(receipt.id));
+          }
+          renderView();
+        }
+        if (event.target.matches("[data-receipt-select]")) {
+          const receiptId = event.target.dataset.receiptSelect;
+          if (event.target.checked) selectedReceiptIds.add(receiptId);
+          else selectedReceiptIds.delete(receiptId);
           renderView();
         }
       });

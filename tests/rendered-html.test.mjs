@@ -86,3 +86,13 @@ test("contains default room, billing, and receipt rules", async () => {
   assert.match(html, /managementAmount/);
   assert.match(html, /meterSnapshot/);
 });
+
+test("supports selecting and batch downloading receipt images", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /批量下载/);
+  assert.match(html, /receipt-select-all/);
+  assert.match(html, /downloadSelectedReceipts/);
+  assert.match(html, /application\/zip/);
+});

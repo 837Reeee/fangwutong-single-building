@@ -29,6 +29,7 @@ test("serves the standalone single-building management site", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>房务通 · 单栋出租楼管理<\/title>/);
+  assert.match(html, /fangwutong\.single-building\.v2/);
   assert.match(html, /fangwutong\.single-building\.v1/);
   assert.match(html, /localStorage\.setItem/);
   assert.match(html, /receipt-canvas/);
@@ -52,6 +53,7 @@ test("includes the three complete two-level business menus", async () => {
     "房间设置",
     "水电录入",
     "本月录入",
+    "批量导入",
     "抄表记录",
     "费用设置",
     "租金收据",
@@ -74,4 +76,8 @@ test("contains default room, billing, and receipt rules", async () => {
   assert.match(html, /RENT-\$\{period\.replace/);
   assert.match(html, /本期读数不能低于上期读数/);
   assert.match(html, /该房间存在水电或收据记录/);
+  assert.match(html, /inputMode: "monthly-usage"/);
+  assert.match(html, /TEMPLATE_VERSION = "a4-usage-v1"/);
+  assert.match(html, /mnist-12\.onnx/);
+  assert.match(html, /四角定位标记/);
 });

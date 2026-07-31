@@ -1,0 +1,12 @@
+Browser handwriting recognition assets
+
+onnxruntime-web 1.23.2
+Copyright (c) Microsoft Corporation
+License: MIT
+Source: https://www.npmjs.com/package/onnxruntime-web
+
+MNIST-1 / MNIST-12 handwritten digit model
+ONNX Model Zoo contributors
+License: MIT
+Source: https://huggingface.co/onnxmodelzoo/mnist-1
+

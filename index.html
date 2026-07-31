@@ -1593,6 +1593,46 @@
         background: var(--legend-color);
       }
 
+      .alignment-controls {
+        display: grid;
+        gap: 12px;
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid var(--slate-200);
+      }
+
+      .alignment-control {
+        display: grid;
+        gap: 6px;
+      }
+
+      .alignment-control-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        color: var(--slate-700);
+        font-size: 11px;
+      }
+
+      .alignment-control-label output {
+        min-width: 38px;
+        color: var(--blue-700);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+
+      .alignment-control input[type="range"] {
+        width: 100%;
+        margin: 0;
+        accent-color: #3487c8;
+        cursor: ew-resize;
+      }
+
+      .alignment-control[data-guide-axis="row"] input[type="range"] {
+        accent-color: #ee9b32;
+      }
+
       .freeform-row-actions {
         display: flex;
         gap: 6px;
@@ -3002,6 +3042,24 @@
                 <span><i style="--legend-color:#ee9b32"></i>数据上下边界</span>
                 <span><i style="--legend-color:#3487c8"></i>列分隔线</span>
               </div>
+              <div class="alignment-controls">
+                <label class="alignment-control" data-guide-axis="row">
+                  <span class="alignment-control-label"><b>上方橙线</b><output data-alignment-output="dataTop">${Math.round(importDraft.alignment.dataTop * 100)}%</output></span>
+                  <input type="range" min="1" max="99" step="1" value="${Math.round(importDraft.alignment.dataTop * 100)}" data-alignment-control="dataTop" aria-label="上方橙线位置" />
+                </label>
+                <label class="alignment-control" data-guide-axis="row">
+                  <span class="alignment-control-label"><b>下方橙线</b><output data-alignment-output="dataBottom">${Math.round(importDraft.alignment.dataBottom * 100)}%</output></span>
+                  <input type="range" min="1" max="99" step="1" value="${Math.round(importDraft.alignment.dataBottom * 100)}" data-alignment-control="dataBottom" aria-label="下方橙线位置" />
+                </label>
+                <label class="alignment-control">
+                  <span class="alignment-control-label"><b>第一根蓝线</b><output data-alignment-output="columnOne">${Math.round(importDraft.alignment.columnOne * 100)}%</output></span>
+                  <input type="range" min="8" max="92" step="1" value="${Math.round(importDraft.alignment.columnOne * 100)}" data-alignment-control="columnOne" aria-label="第一根蓝线位置" />
+                </label>
+                <label class="alignment-control">
+                  <span class="alignment-control-label"><b>第二根蓝线</b><output data-alignment-output="columnTwo">${Math.round(importDraft.alignment.columnTwo * 100)}%</output></span>
+                  <input type="range" min="8" max="92" step="1" value="${Math.round(importDraft.alignment.columnTwo * 100)}" data-alignment-control="columnTwo" aria-label="第二根蓝线位置" />
+                </label>
+              </div>
               <div class="form-actions" style="display:grid;margin-top:16px">
                 <button class="button button-secondary" type="button" data-action="reset-freeform-alignment">自动重新定位</button>
                 <button class="button button-primary" type="button" data-action="recognize-freeform">开始本地识别</button>
@@ -3644,6 +3702,43 @@
           ctx.strokeStyle = "white";
           ctx.lineWidth = 3;
           ctx.stroke();
+        });
+      }
+
+      function setAlignmentGuideValue(type, rawValue) {
+        if (!importDraft.alignment) return;
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) return;
+        const alignment = importDraft.alignment;
+        if (type === "dataTop") {
+          alignment.dataTop = Math.min(alignment.dataBottom - 0.08, Math.max(0.01, value));
+        } else if (type === "dataBottom") {
+          alignment.dataBottom = Math.max(alignment.dataTop + 0.08, Math.min(0.99, value));
+        } else if (type === "columnOne") {
+          alignment.columnOne = Math.min(alignment.columnTwo - 0.08, Math.max(0.08, value));
+        } else if (type === "columnTwo") {
+          alignment.columnTwo = Math.max(alignment.columnOne + 0.08, Math.min(0.92, value));
+        }
+      }
+
+      function syncAlignmentControlRanges() {
+        if (!importDraft.alignment) return;
+        const alignment = importDraft.alignment;
+        const limits = {
+          dataTop: [0.01, alignment.dataBottom - 0.08],
+          dataBottom: [alignment.dataTop + 0.08, 0.99],
+          columnOne: [0.08, alignment.columnTwo - 0.08],
+          columnTwo: [alignment.columnOne + 0.08, 0.92],
+        };
+        document.querySelectorAll("[data-alignment-control]").forEach((control) => {
+          const type = control.dataset.alignmentControl;
+          if (!(type in limits)) return;
+          const [minimum, maximum] = limits[type];
+          control.min = String(Math.round(minimum * 100));
+          control.max = String(Math.round(maximum * 100));
+          control.value = String(Math.round(alignment[type] * 100));
+          const output = document.querySelector(`[data-alignment-output="${type}"]`);
+          if (output) output.textContent = `${Math.round(alignment[type] * 100)}%`;
         });
       }
 
@@ -6236,6 +6331,7 @@
           }
         }
         drawAlignmentEditor();
+        syncAlignmentControlRanges();
         event.preventDefault();
       });
 
@@ -6316,6 +6412,7 @@
           if (importDraft.sourceImage) {
             importDraft.alignment = detectFreeformPaper(importDraft.sourceImage);
             drawAlignmentEditor();
+            syncAlignmentControlRanges();
           }
         } else if (action === "recognize-freeform") {
           await recognizeFreeformSheet();
@@ -6449,6 +6546,15 @@
       });
 
       document.addEventListener("input", (event) => {
+        if (event.target.matches("[data-alignment-control]")) {
+          setAlignmentGuideValue(
+            event.target.dataset.alignmentControl,
+            Number(event.target.value) / 100,
+          );
+          syncAlignmentControlRanges();
+          drawAlignmentEditor();
+          return;
+        }
         if (event.target.matches(".meter-number, .receipt-amount")) {
           syncDynamicCalculations();
         }

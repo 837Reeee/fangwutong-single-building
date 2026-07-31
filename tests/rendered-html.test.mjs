@@ -153,6 +153,10 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.match(html, /filtered\.length < 2/);
   assert.match(html, /recognizeFreeformField/);
   assert.match(html, /alignment-canvas/);
+  assert.match(html, /data-alignment-control="columnOne"/);
+  assert.match(html, /第一根蓝线位置/);
+  assert.match(html, /setAlignmentGuideValue/);
+  assert.match(html, /syncAlignmentControlRanges/);
   assert.match(html, /data-action="recognize-freeform"/);
   assert.match(html, /applyPreviousReadingToRow/);
   assert.match(html, /values\.currentWater < values\.prevWater/);

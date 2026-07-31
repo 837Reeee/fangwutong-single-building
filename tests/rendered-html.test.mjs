@@ -169,3 +169,15 @@ test("previews final single and batch receipts before saving", async () => {
   assert.match(html, /createReceiptImageBlob\(receipt\)/);
   assert.match(html, /data-action="open-receipt-preview"/);
 });
+
+test("uses a template-level default receipt signature date", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /receiptDefaultDate: toLocalDateInput/);
+  assert.match(html, /name="receiptDefaultDate"/);
+  assert.match(html, /state\.settings\.receiptDefaultDate \|\| toLocalDateInput/);
+  assert.match(html, /batchReceiptDraft\.receivedAt = state\.settings\.receiptDefaultDate/);
+  assert.match(html, /receivedAt: String\(data\.get\("receivedAt"\)\)/);
+  assert.match(html, /const \[year, month, day\] = String\(receipt\.receivedAt/);
+});

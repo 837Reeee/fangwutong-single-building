@@ -2208,7 +2208,8 @@
         period: CURRENT_PERIOD,
         roomIds: new Set(),
         paymentMethod: "room-default",
-        receivedAt: toLocalDateInput(new Date()),
+        receivedAt:
+          state.settings.receiptDefaultDate || toLocalDateInput(new Date()),
         issuer: state.settings.payee,
         payee: state.settings.payee,
         note: "",
@@ -2264,6 +2265,7 @@
             electricRate: 0.8,
             receiptTitle: "房租、水、电费（专用）收据",
             payee: "房屋管理员",
+            receiptDefaultDate: toLocalDateInput(new Date()),
           },
           rooms,
           meterRecords: [],
@@ -2301,6 +2303,9 @@
             };
             if (migrated.settings.receiptTitle === "租金收款收据") {
               migrated.settings.receiptTitle = "房租、水、电费（专用）收据";
+            }
+            if (!migrated.settings.receiptDefaultDate) {
+              migrated.settings.receiptDefaultDate = toLocalDateInput(new Date());
             }
             localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
             return migrated;
@@ -4899,7 +4904,9 @@
           data.get("paymentMethod") || "room-default",
         );
         batchReceiptDraft.receivedAt =
-          String(data.get("receivedAt") || "") || toLocalDateInput(new Date());
+          String(data.get("receivedAt") || "") ||
+          state.settings.receiptDefaultDate ||
+          toLocalDateInput(new Date());
         batchReceiptDraft.issuer = String(data.get("issuer") || "").trim();
         batchReceiptDraft.payee = String(data.get("payee") || "").trim();
         batchReceiptDraft.note = String(data.get("note") || "").trim();
@@ -5034,7 +5041,7 @@
                     </label>
                     <label class="field">
                       <span class="field-label">收款日期</span>
-                      <input class="field-input" name="receivedAt" type="date" value="${toLocalDateInput(new Date())}" required />
+                      <input class="field-input" name="receivedAt" type="date" value="${state.settings.receiptDefaultDate || toLocalDateInput(new Date())}" required />
                     </label>
                     <label class="field">
                       <span class="field-label">开票人</span>
@@ -5213,6 +5220,11 @@
                     <span class="field-label">默认收款人</span>
                     <input class="field-input" name="payee" maxlength="30" value="${escapeHtml(state.settings.payee)}" required />
                   </label>
+                  <label class="field">
+                    <span class="field-label">默认落款日期</span>
+                    <input class="field-input" name="receiptDefaultDate" type="date" value="${state.settings.receiptDefaultDate || toLocalDateInput(new Date())}" required />
+                    <span class="field-help">单张和批量开具时自动带入，开具页面仍可临时修改。</span>
+                  </label>
                 </div>
                 <div class="form-actions">
                   <button class="button button-primary" type="submit">保存模板设置</button>
@@ -5380,7 +5392,11 @@
             otherAmount: previewAmount(data.get("otherAmount")),
           },
           paymentMethod: String(data.get("paymentMethod") || room.paymentMethod || "微信"),
-          receivedAt: String(data.get("receivedAt") || toLocalDateInput(new Date())),
+          receivedAt: String(
+            data.get("receivedAt") ||
+              state.settings.receiptDefaultDate ||
+              toLocalDateInput(new Date()),
+          ),
           issuer: String(data.get("issuer") || state.settings.payee).trim(),
           payee: String(data.get("payee") || state.settings.payee).trim(),
           note: String(data.get("note") || "").trim(),
@@ -6293,7 +6309,8 @@
               period: CURRENT_PERIOD,
               roomIds: new Set(),
               paymentMethod: "room-default",
-              receivedAt: toLocalDateInput(new Date()),
+              receivedAt:
+                state.settings.receiptDefaultDate || toLocalDateInput(new Date()),
               issuer: state.settings.payee,
               payee: state.settings.payee,
               note: "",
@@ -6771,6 +6788,10 @@
           state.settings.buildingName = String(data.get("buildingName")).trim();
           state.settings.receiptTitle = String(data.get("receiptTitle")).trim();
           state.settings.payee = String(data.get("payee")).trim();
+          state.settings.receiptDefaultDate =
+            String(data.get("receiptDefaultDate") || "") ||
+            toLocalDateInput(new Date());
+          batchReceiptDraft.receivedAt = state.settings.receiptDefaultDate;
           saveState("收据模板已保存");
           renderView();
         }

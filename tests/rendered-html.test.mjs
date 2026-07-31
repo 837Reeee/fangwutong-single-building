@@ -181,3 +181,15 @@ test("uses a template-level default receipt signature date", async () => {
   assert.match(html, /receivedAt: String\(data\.get\("receivedAt"\)\)/);
   assert.match(html, /const \[year, month, day\] = String\(receipt\.receivedAt/);
 });
+
+test("snapshots and renders a customizable rent amount prefix", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /rentAmountPrefix: ""/);
+  assert.match(html, /name="rentAmountPrefix" maxlength="20"/);
+  assert.match(html, /rentAmountPrefix: state\.settings\.rentAmountPrefix \|\| ""/);
+  assert.match(html, /const rentAmountPrefix = String\(receipt\.rentAmountPrefix \|\| ""\)/);
+  assert.match(html, /\? `\$\{rentAmountPrefix\}　¥ \$\{formatMoney\(receipt\.rent\)\}`/);
+  assert.match(html, /state\.settings\.rentAmountPrefix = String/);
+});

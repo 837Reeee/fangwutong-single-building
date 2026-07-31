@@ -2266,6 +2266,7 @@
             receiptTitle: "房租、水、电费（专用）收据",
             payee: "房屋管理员",
             receiptDefaultDate: toLocalDateInput(new Date()),
+            rentAmountPrefix: "",
           },
           rooms,
           meterRecords: [],
@@ -2299,13 +2300,21 @@
                     ...record,
                   }))
                 : [],
-              receipts: Array.isArray(saved.receipts) ? saved.receipts : [],
+              receipts: Array.isArray(saved.receipts)
+                ? saved.receipts.map((receipt) => ({
+                    rentAmountPrefix: "",
+                    ...receipt,
+                  }))
+                : [],
             };
             if (migrated.settings.receiptTitle === "租金收款收据") {
               migrated.settings.receiptTitle = "房租、水、电费（专用）收据";
             }
             if (!migrated.settings.receiptDefaultDate) {
               migrated.settings.receiptDefaultDate = toLocalDateInput(new Date());
+            }
+            if (typeof migrated.settings.rentAmountPrefix !== "string") {
+              migrated.settings.rentAmountPrefix = "";
             }
             localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
             return migrated;
@@ -5225,6 +5234,11 @@
                     <input class="field-input" name="receiptDefaultDate" type="date" value="${state.settings.receiptDefaultDate || toLocalDateInput(new Date())}" required />
                     <span class="field-help">单张和批量开具时自动带入，开具页面仍可临时修改。</span>
                   </label>
+                  <label class="field">
+                    <span class="field-label">房租金额前缀</span>
+                    <input class="field-input" name="rentAmountPrefix" maxlength="20" value="${escapeHtml(state.settings.rentAmountPrefix || "")}" placeholder="例如：2026年7月房租" />
+                    <span class="field-help">显示在房租金额前；留空时仅显示“¥ + 金额”。</span>
+                  </label>
                 </div>
                 <div class="form-actions">
                   <button class="button button-primary" type="submit">保存模板设置</button>
@@ -5581,6 +5595,7 @@
           note,
           buildingName: state.settings.buildingName,
           receiptTitle: state.settings.receiptTitle,
+          rentAmountPrefix: state.settings.rentAmountPrefix || "",
           meterSnapshot: receiptMeterSnapshot(meter),
           createdAt: new Date().toISOString(),
         };
@@ -5854,8 +5869,12 @@
           writeMoneyGrid(row.charge, row.y1, row.y2);
         });
 
+        const rentAmountPrefix = String(receipt.rentAmountPrefix || "").trim();
+        const rentAmountDisplay = rentAmountPrefix
+          ? `${rentAmountPrefix}　¥ ${formatMoney(receipt.rent)}`
+          : `¥ ${formatMoney(receipt.rent)}`;
         centerText("房租", 70, 270, 530, 620, { weight: 700 });
-        centerText(`¥ ${formatMoney(receipt.rent)}`, 270, 1080, 530, 620, {
+        centerText(rentAmountDisplay, 270, 1080, 530, 620, {
           color: handwriting,
           size: 34,
           font: '"KaiTi", sans-serif',
@@ -6791,6 +6810,11 @@
           state.settings.receiptDefaultDate =
             String(data.get("receiptDefaultDate") || "") ||
             toLocalDateInput(new Date());
+          state.settings.rentAmountPrefix = String(
+            data.get("rentAmountPrefix") || "",
+          )
+            .trim()
+            .slice(0, 20);
           batchReceiptDraft.receivedAt = state.settings.receiptDefaultDate;
           saveState("收据模板已保存");
           renderView();

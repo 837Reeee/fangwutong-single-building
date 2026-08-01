@@ -1057,6 +1057,40 @@
         font-size: 11px;
       }
 
+      .mirror-migration-notice {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+        padding: 15px 17px;
+        border: 1px solid #bad5ea;
+        border-radius: 15px;
+        background: linear-gradient(135deg, #eef7ff, #f8fbff);
+        color: var(--slate-700);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .mirror-migration-notice strong,
+      .mirror-migration-notice span {
+        display: block;
+      }
+
+      .mirror-migration-notice strong {
+        color: var(--navy-900);
+        font-size: 13px;
+      }
+
+      .mirror-migration-notice span {
+        margin-top: 4px;
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      .mirror-migration-notice .actions {
+        flex: 0 0 auto;
+      }
+
       .danger-zone {
         margin-top: 18px;
         padding: 17px;
@@ -1983,6 +2017,16 @@
       }
 
       @media (max-width: 680px) {
+        .mirror-migration-notice {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .mirror-migration-notice .actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+        }
+
         .backup-action-grid {
           grid-template-columns: 1fr;
         }
@@ -2397,6 +2441,7 @@
       const BACKUP_FORMAT = "fangwutong-single-building-backup";
       const BACKUP_FORMAT_VERSION = 1;
       const MAX_BACKUP_FILE_SIZE = 10 * 1024 * 1024;
+      const MIRROR_HINT_KEY = "fangwutong.mobile-mirror-tip.v1";
       const CURRENT_PERIOD = toLocalDateInput(new Date()).slice(0, 7);
       const TEMPLATE_VERSION = "a4-usage-v1";
       const FREEFORM_TEMPLATE_VERSION = "freeform-3col-v1";
@@ -3047,7 +3092,7 @@
           "receipt-records": renderReceiptRecords,
           "receipt-settings": renderReceiptSettings,
         };
-        viewContainer.innerHTML = (renderers[activeView] || renderRoomOverview)();
+        viewContainer.innerHTML = `${renderMirrorMigrationNotice()}${(renderers[activeView] || renderRoomOverview)()}`;
         syncDynamicCalculations();
         if (activeView === "meter-import" && importDraft.stage === "align") {
           requestAnimationFrame(() => drawAlignmentEditor());
@@ -3057,6 +3102,30 @@
         } else {
           clearReceiptPreviewUrl();
         }
+      }
+
+      function isMobileMirrorHost() {
+        return /(?:^|\.)(?:tcloudbaseapp\.com|app\.tcloudbase\.com)$/i.test(
+          window.location.hostname,
+        );
+      }
+
+      function renderMirrorMigrationNotice() {
+        if (!isMobileMirrorHost() || localStorage.getItem(MIRROR_HINT_KEY) === "dismissed") {
+          return "";
+        }
+        return `
+          <aside class="mirror-migration-notice" role="status" aria-label="备用地址数据迁移提示">
+            <div>
+              <strong>这是手机备用访问地址</strong>
+              <span>新网址的数据与原网址相互独立。如需带入旧数据，请先在电脑原网址下载备份，再在这里恢复。</span>
+            </div>
+            <div class="actions">
+              <button class="button button-primary button-small" type="button" data-action="go-backup-migration">去恢复数据</button>
+              <button class="button button-soft button-small" type="button" data-action="dismiss-mirror-hint">知道了</button>
+            </div>
+          </aside>
+        `;
       }
 
       function renderRoomOverview() {
@@ -7638,7 +7707,17 @@
         if (!actionButton) return;
         const action = actionButton.dataset.action;
 
-        if (action === "download-backup") {
+        if (action === "go-backup-migration") {
+          try {
+            localStorage.setItem(MIRROR_HINT_KEY, "dismissed");
+          } catch {}
+          navigate("data-backup");
+        } else if (action === "dismiss-mirror-hint") {
+          try {
+            localStorage.setItem(MIRROR_HINT_KEY, "dismissed");
+          } catch {}
+          renderView();
+        } else if (action === "download-backup") {
           downloadBackupFile();
         } else if (action === "clear-restore-file") {
           restoreDraft = createEmptyRestoreDraft();

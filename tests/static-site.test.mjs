@@ -46,3 +46,15 @@ test("provides touch-friendly mobile layouts for forms, dialogs, OCR and receipt
   assert.match(html, /\.receipt-preview-dialog img\s*\{\s*width: 900px;/);
   assert.match(html, /\.alignment-control input\[type="range"\]\s*\{\s*min-height: 44px;/);
 });
+
+test("keeps business pages compact without allowing receipt previews to widen the viewport", async () => {
+  const html = await readFile(path.join(staticRoot, "index.html"), "utf8");
+  assert.match(html, /\.split-layout > \*,\s*\.panel,\s*\.panel-header,\s*\.panel-body\s*\{\s*min-width: 0;/);
+  assert.match(html, /\.receipt-preview-frame\s*\{[\s\S]*?contain: inline-size;/);
+  assert.match(html, /\.mobile-stats-summary:not\(\[hidden\]\)\s*\{\s*display: grid;/);
+  assert.match(html, /\.stats-grid\.business-stats\.mobile-collapsed\s*\{\s*display: none;/);
+  assert.match(html, /#receipt-form \.field-grid,\s*#batch-receipt-form \.field-grid\s*\{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(html, /@media \(max-width: 340px\)[\s\S]*?#receipt-form \.field-grid,[\s\S]*?grid-template-columns: 1fr;/);
+  assert.match(html, /aria-controls="stats-grid"/);
+  assert.match(html, /mobileStatsExpanded = false/);
+});

@@ -4309,9 +4309,10 @@
         kind,
         minimumValue = null,
       ) {
-        const margin = canvas.width * 0.012;
-        const x = canvas.width * startRatio + margin;
-        const width = canvas.width * (endRatio - startRatio) - margin * 2;
+        const leftMargin = canvas.width * (kind === "room" ? 0.032 : 0.012);
+        const rightMargin = canvas.width * 0.012;
+        const x = canvas.width * startRatio + leftMargin;
+        const width = canvas.width * (endRatio - startRatio) - leftMargin - rightMargin;
         const region = grayRegion(canvas, x, band.top, width, band.bottom - band.top);
         const threshold = otsuThreshold(region.gray);
         const columnThresholds = new Float32Array(region.width);
@@ -4397,6 +4398,20 @@
             groups.push(bound);
           }
         }
+        if (kind === "room") {
+          const expectedRoomDigits = dominantNumericRoomDigitCount();
+          if (
+            expectedRoomDigits &&
+            groups.length !== expectedRoomDigits &&
+            expectedRoomDigits <= 6
+          ) {
+            groups = splitDigitRunAtValleys(
+              { left: bounds[0].left, right: bounds[bounds.length - 1].right },
+              expectedRoomDigits,
+              projection,
+            );
+          }
+        }
         const numericMinimum = Number(minimumValue);
         if (
           kind === "reading" &&
@@ -4461,25 +4476,20 @@
             { x: 0, y: 0, width: digitCanvas.width, height: digitCanvas.height },
             1,
             session,
-            kind === "reading",
+            kind === "reading" || kind === "room",
           );
           if (result.digit !== null) output.push(result);
           if (group.forcedSplit || result.confidence < 0.72) uncertain = true;
         }
         let value = output.map((item) => item.digit || "").join("");
         value = value.replace(/^\./, "0.").replace(/\.(?=.*\.)/g, "");
+        const rawValue = value;
         if (kind === "room") {
           value = value.replace(/\D/g, "");
-          if (!state.rooms.some((room) => String(room.number) === value) && value) {
-            const candidates = state.rooms
-              .map((room) => String(room.number))
-              .filter((number) => Math.abs(number.length - value.length) <= 1)
-              .map((number) => ({ number, distance: editDistance(number, value) }))
-              .sort((a, b) => a.distance - b.distance);
-            if (candidates[0]?.distance === 1 && candidates[1]?.distance !== 1) {
-              value = candidates[0].number;
-              uncertain = true;
-            }
+          const knownRoom = chooseKnownRoomCandidate(output, value);
+          if (knownRoom && knownRoom.number !== value) {
+            value = knownRoom.number;
+            uncertain = true;
           }
         }
         const confidences = output
@@ -4503,7 +4513,47 @@
           confidence,
           image: fieldCanvas.toDataURL("image/jpeg", 0.74),
           needsReview: uncertain || !Number.isFinite(confidence) || confidence < 0.72,
+          ...(kind === "room" ? { rawValue } : {}),
         };
+      }
+
+      function dominantNumericRoomDigitCount() {
+        const numericRooms = state.rooms
+          .map((room) => String(room.number))
+          .filter((number) => /^\d+$/.test(number));
+        if (!numericRooms.length) return 0;
+        const counts = new Map();
+        numericRooms.forEach((number) => {
+          counts.set(number.length, (counts.get(number.length) || 0) + 1);
+        });
+        const [digits, count] = [...counts.entries()].sort(
+          (left, right) => right[1] - left[1],
+        )[0];
+        return count >= Math.ceil(numericRooms.length * 0.6) ? digits : 0;
+      }
+
+      function chooseKnownRoomCandidate(output, rawValue) {
+        if (!output.length || output.some((item) => item.digit === ".")) return null;
+        const candidates = state.rooms
+          .map((room) => String(room.number))
+          .filter((number) => /^\d+$/.test(number) && number.length === output.length)
+          .map((number) => {
+            let score = 0;
+            let confidence = 1;
+            for (let index = 0; index < number.length; index += 1) {
+              const digit = output[index];
+              const match = digit.candidates?.find(
+                (candidate) => candidate.digit === number[index],
+              );
+              const probability = match?.confidence || 1e-7;
+              score += Math.log(probability);
+              confidence = Math.min(confidence, probability);
+            }
+            score -= editDistance(number, rawValue) * 0.12;
+            return { number, score, confidence };
+          })
+          .sort((left, right) => right.score - left.score);
+        return candidates[0] || null;
       }
 
       function splitDigitRunAtValleys(bound, pieces, projection) {
@@ -4592,43 +4642,90 @@
       }
 
       function applyRoomSequenceCorrection(rows) {
-        const orderedRooms = [...state.rooms].sort(
+        const orderedRooms = state.rooms
+          .filter((room) => /^\d+$/.test(String(room.number)))
+          .sort(
           (left, right) =>
             Number(left.floor) - Number(right.floor) ||
             String(left.number).localeCompare(String(right.number), "zh-CN", { numeric: true }),
+          );
+        if (!rows.length || rows.length > orderedRooms.length) return false;
+        const rowCount = rows.length;
+        const roomCount = orderedRooms.length;
+        const costs = Array.from({ length: rowCount + 1 }, () =>
+          Array(roomCount + 1).fill(Infinity),
         );
-        if (rows.length < 4 || rows.length > orderedRooms.length) return false;
-        const recognized = rows.filter((row) => row.roomNumber.value).length;
-        if (recognized < Math.ceil(rows.length * 0.6)) return false;
-        const windows = [];
-        for (let start = 0; start <= orderedRooms.length - rows.length; start += 1) {
-          let score = 0;
-          for (let index = 0; index < rows.length; index += 1) {
-            const observed = String(rows[index].roomNumber.value || "");
-            const expected = String(orderedRooms[start + index].number);
-            score += observed ? Math.min(3, editDistance(expected, observed)) : 1.5;
+        const previous = Array.from({ length: rowCount + 1 }, () =>
+          Array(roomCount + 1).fill(null),
+        );
+        costs[0][0] = 0;
+        for (let roomIndex = 0; roomIndex < roomCount; roomIndex += 1) {
+          for (let rowIndex = 0; rowIndex <= rowCount; rowIndex += 1) {
+            const current = costs[rowIndex][roomIndex];
+            if (!Number.isFinite(current)) continue;
+            const skipCost = current + 0.28;
+            if (skipCost < costs[rowIndex][roomIndex + 1]) {
+              costs[rowIndex][roomIndex + 1] = skipCost;
+              previous[rowIndex][roomIndex + 1] = {
+                rowIndex,
+                roomIndex,
+                action: "skip",
+              };
+            }
+            if (rowIndex < rowCount) {
+              const expected = String(orderedRooms[roomIndex].number);
+              const field = rows[rowIndex].roomNumber;
+              const raw = String(field.rawValue || field.value || "");
+              const selected = String(field.value || "");
+              const rawDistance = editDistance(expected, raw) / Math.max(1, expected.length, raw.length);
+              const selectedDistance = editDistance(expected, selected) / Math.max(1, expected.length, selected.length);
+              const containsCost = raw.includes(expected) || expected.includes(raw) ? 0.18 : Infinity;
+              const matchCost = Math.min(rawDistance * 1.8, selectedDistance * 1.25, containsCost);
+              const total = current + matchCost;
+              if (total < costs[rowIndex + 1][roomIndex + 1]) {
+                costs[rowIndex + 1][roomIndex + 1] = total;
+                previous[rowIndex + 1][roomIndex + 1] = {
+                  rowIndex,
+                  roomIndex,
+                  action: "match",
+                };
+              }
+            }
           }
-          windows.push({ start, score });
         }
-        windows.sort((left, right) => left.score - right.score);
-        const best = windows[0];
-        const runnerUp = windows[1];
-        if (
-          !best ||
-          best.score / rows.length > 1 ||
-          (runnerUp && runnerUp.score - best.score < Math.max(2, rows.length * 0.1))
-        ) {
-          return false;
+        let bestRoomIndex = rowCount;
+        let bestCost = Infinity;
+        for (let roomIndex = rowCount; roomIndex <= roomCount; roomIndex += 1) {
+          const total = costs[rowCount][roomIndex] + (roomCount - roomIndex) * 0.03;
+          if (total < bestCost) {
+            bestCost = total;
+            bestRoomIndex = roomIndex;
+          }
         }
-        rows.forEach((row, index) => {
-          const expected = String(orderedRooms[best.start + index].number);
-          if (row.roomNumber.value !== expected) {
-            row.roomNumber.value = expected;
-            row.roomNumber.needsReview = true;
-            row.roomNumber.sequenceCorrected = true;
+        const assignments = Array(rowCount).fill(null);
+        let rowIndex = rowCount;
+        let roomIndex = bestRoomIndex;
+        while (rowIndex > 0 && roomIndex > 0) {
+          const step = previous[rowIndex][roomIndex];
+          if (!step) break;
+          if (step.action === "match") {
+            assignments[rowIndex - 1] = orderedRooms[roomIndex - 1];
+          }
+          rowIndex = step.rowIndex;
+          roomIndex = step.roomIndex;
+        }
+        let corrected = false;
+        assignments.forEach((room, index) => {
+          if (!room) return;
+          const expected = String(room.number);
+          if (rows[index].roomNumber.value !== expected) {
+            rows[index].roomNumber.value = expected;
+            rows[index].roomNumber.needsReview = true;
+            rows[index].roomNumber.sequenceCorrected = true;
+            corrected = true;
           }
         });
-        return true;
+        return corrected;
       }
 
       async function recognizeMeterSheet(file) {

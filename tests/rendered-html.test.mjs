@@ -172,7 +172,7 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.match(html, /detectFreeformInkGuides/);
   assert.match(html, /columnThresholds/);
   assert.match(html, /applyRoomSequenceCorrection/);
-  assert.match(html, /recognized < Math\.ceil\(rows\.length \* 0\.6\)/);
+  assert.match(html, /rows\.length > orderedRooms\.length/);
   assert.match(html, /freeformElectricEndRatio/);
   assert.match(html, /matchFreeformColumnBands/);
   assert.match(html, /const strengthened = new Float32Array/);
@@ -186,6 +186,10 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.match(html, /centerDigitTensor/);
   assert.match(html, /deskewDigitTensor/);
   assert.match(html, /weight: 0\.43/);
+  assert.match(html, /dominantNumericRoomDigitCount/);
+  assert.match(html, /chooseKnownRoomCandidate/);
+  assert.match(html, /action: "match"/);
+  assert.match(html, /skipCost = current \+ 0\.28/);
   assert.match(html, /data-action="recognize-freeform"/);
   assert.match(html, /applyPreviousReadingToRow/);
   assert.match(html, /values\.currentWater < values\.prevWater/);

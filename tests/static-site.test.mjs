@@ -36,3 +36,13 @@ test("uses root-hosted OCR paths and includes mirror migration guidance", async 
   assert.match(html, /go-backup-migration/);
   assert.match(html, /fangwutong\.mobile-mirror-tip\.v1/);
 });
+
+test("provides touch-friendly mobile layouts for forms, dialogs, OCR and receipts", async () => {
+  const html = await readFile(path.join(staticRoot, "index.html"), "utf8");
+  assert.match(html, /viewport-fit=cover/);
+  assert.match(html, /\.field-input,\s*\.field-select,\s*\.field-textarea,\s*\.filter-input\s*\{\s*font-size: 16px;/);
+  assert.match(html, /\.form-actions\s*\{\s*align-items: stretch;\s*flex-direction: column-reverse;/);
+  assert.match(html, /\.receipt-preview-frame \.receipt-preview-image:not\(\[hidden\]\)\s*\{\s*width: 720px;/);
+  assert.match(html, /\.receipt-preview-dialog img\s*\{\s*width: 900px;/);
+  assert.match(html, /\.alignment-control input\[type="range"\]\s*\{\s*min-height: 44px;/);
+});

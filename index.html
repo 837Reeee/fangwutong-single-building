@@ -1301,6 +1301,208 @@
         font-weight: 900;
       }
 
+      .backup-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .backup-summary-item {
+        min-width: 0;
+        padding: 15px;
+        border: 1px solid var(--slate-200);
+        border-radius: 14px;
+        background: var(--slate-50);
+      }
+
+      .backup-summary-item span,
+      .backup-summary-item strong {
+        display: block;
+      }
+
+      .backup-summary-item span {
+        overflow: hidden;
+        color: var(--slate-500);
+        font-size: 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .backup-summary-item strong {
+        overflow: hidden;
+        margin-top: 5px;
+        color: var(--slate-900);
+        font-size: 19px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .backup-summary-item:first-child {
+        grid-column: span 2;
+      }
+
+      .backup-action-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .backup-card {
+        padding: 20px;
+        border: 1px solid var(--slate-200);
+        border-radius: 17px;
+        background: white;
+      }
+
+      .backup-card h3 {
+        margin: 0;
+        color: var(--slate-900);
+        font-size: 15px;
+      }
+
+      .backup-card > p {
+        min-height: 42px;
+        margin: 7px 0 16px;
+        color: var(--slate-500);
+        font-size: 11px;
+        line-height: 1.65;
+      }
+
+      .backup-card .upload-zone {
+        min-height: 146px;
+        padding: 18px;
+      }
+
+      .upload-zone.dragging {
+        border-color: var(--blue-500);
+        background: #e7f3ff;
+        box-shadow: 0 0 0 4px rgba(52, 127, 192, 0.1);
+        transform: translateY(-1px);
+      }
+
+      .backup-primary-action {
+        display: grid;
+        width: 100%;
+        min-height: 146px;
+        place-items: center;
+        padding: 20px;
+        border: 0;
+        border-radius: 16px;
+        background: linear-gradient(145deg, var(--navy-900), var(--blue-700));
+        color: white;
+        cursor: pointer;
+        text-align: center;
+        box-shadow: 0 14px 30px rgba(22, 67, 108, 0.18);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+      }
+
+      .backup-primary-action:hover {
+        box-shadow: 0 17px 34px rgba(22, 67, 108, 0.25);
+        transform: translateY(-2px);
+      }
+
+      .backup-primary-action strong,
+      .backup-primary-action small {
+        display: block;
+      }
+
+      .backup-primary-action strong {
+        font-size: 15px;
+      }
+
+      .backup-primary-action small {
+        margin-top: 6px;
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 10px;
+      }
+
+      .restore-error,
+      .restore-preview,
+      .backup-security-notice {
+        margin-top: 16px;
+        padding: 15px;
+        border-radius: 14px;
+      }
+
+      .restore-error {
+        border: 1px solid #f1ccd0;
+        background: #fff5f6;
+        color: var(--red);
+        font-size: 11px;
+      }
+
+      .restore-preview {
+        border: 1px solid #bad5ea;
+        background: #f7fbff;
+      }
+
+      .restore-preview-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .restore-preview-head h4 {
+        margin: 0;
+        color: var(--slate-900);
+        font-size: 13px;
+      }
+
+      .restore-preview-head p {
+        margin: 4px 0 0;
+        color: var(--slate-500);
+        font-size: 10px;
+      }
+
+      .restore-preview-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 13px;
+      }
+
+      .restore-preview-grid div {
+        padding: 10px;
+        border-radius: 10px;
+        background: white;
+      }
+
+      .restore-preview-grid span,
+      .restore-preview-grid strong {
+        display: block;
+      }
+
+      .restore-preview-grid span {
+        color: var(--slate-500);
+        font-size: 9px;
+      }
+
+      .restore-preview-grid strong {
+        overflow: hidden;
+        margin-top: 3px;
+        color: var(--slate-800);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .backup-security-notice {
+        display: flex;
+        gap: 10px;
+        border: 1px solid #f1d9b8;
+        background: #fff9ef;
+        color: #7f5c20;
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      .backup-security-notice strong {
+        color: #694816;
+      }
+
       .recognition-progress {
         margin-top: 16px;
         padding: 16px;
@@ -1667,6 +1869,10 @@
         .alignment-workspace {
           grid-template-columns: 1fr;
         }
+
+        .backup-summary-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
       }
 
       @media (max-width: 920px) {
@@ -1777,6 +1983,30 @@
       }
 
       @media (max-width: 680px) {
+        .backup-action-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .backup-summary-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .backup-summary-item:first-child {
+          grid-column: span 2;
+        }
+
+        .restore-preview-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .restore-preview-head {
+          display: block;
+        }
+
+        .restore-preview-head .button {
+          margin-top: 10px;
+        }
+
         .import-steps {
           grid-template-columns: 1fr;
         }
@@ -2164,6 +2394,9 @@
     <script>
       const STORAGE_KEY = "fangwutong.single-building.v2";
       const LEGACY_STORAGE_KEY = "fangwutong.single-building.v1";
+      const BACKUP_FORMAT = "fangwutong-single-building-backup";
+      const BACKUP_FORMAT_VERSION = 1;
+      const MAX_BACKUP_FILE_SIZE = 10 * 1024 * 1024;
       const CURRENT_PERIOD = toLocalDateInput(new Date()).slice(0, 7);
       const TEMPLATE_VERSION = "a4-usage-v1";
       const FREEFORM_TEMPLATE_VERSION = "freeform-3col-v1";
@@ -2198,6 +2431,7 @@
             { id: "room-occupied", label: "在租房间", description: "维护在租房间和租客档案" },
             { id: "room-vacant", label: "空置房间", description: "查看可出租房间并登记入住" },
             { id: "room-settings", label: "房间设置", description: "新增、编辑或删除房间" },
+            { id: "data-backup", label: "数据备份", description: "导出或恢复当前设备上的全部业务数据" },
           ],
         },
         {
@@ -2276,6 +2510,7 @@
         alignment: null,
         dragTarget: null,
       };
+      let restoreDraft = createEmptyRestoreDraft();
       let ocrSessionPromise = null;
       let confirmResolver = null;
       let toastTimer = 0;
@@ -2321,48 +2556,64 @@
         };
       }
 
+      function isPlainObject(value) {
+        return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+      }
+
+      function normalizeState(saved) {
+        if (![1, 2].includes(saved?.version) || !Array.isArray(saved.rooms)) {
+          throw new Error("数据版本不受支持");
+        }
+        const defaults = createDefaultState();
+        const migrated = {
+          ...defaults,
+          ...saved,
+          version: 2,
+          settings: {
+            ...defaults.settings,
+            ...(isPlainObject(saved.settings) ? saved.settings : {}),
+          },
+          rooms: saved.rooms.map((room) => ({
+            sanitationAmount: 0,
+            tvAmount: 0,
+            internetAmount: 0,
+            managementAmount: 0,
+            otherAmount: 0,
+            paymentMethod: "微信",
+            ...room,
+          })),
+          meterRecords: Array.isArray(saved.meterRecords)
+            ? saved.meterRecords.map((record) => ({
+                inputMode: record.inputMode || "meter-reading",
+                ...record,
+              }))
+            : [],
+          receipts: Array.isArray(saved.receipts)
+            ? saved.receipts.map((receipt) => ({
+                rentAmountPrefix: "",
+                ...receipt,
+              }))
+            : [],
+        };
+        if (migrated.settings.receiptTitle === "租金收款收据") {
+          migrated.settings.receiptTitle = "房租、水、电费（专用）收据";
+        }
+        if (!migrated.settings.receiptDefaultDate) {
+          migrated.settings.receiptDefaultDate = toLocalDateInput(new Date());
+        }
+        if (typeof migrated.settings.rentAmountPrefix !== "string") {
+          migrated.settings.rentAmountPrefix = "";
+        }
+        return migrated;
+      }
+
       function loadState() {
         try {
           const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
           const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY));
           const saved = current?.version === 2 ? current : legacy;
           if ([1, 2].includes(saved?.version) && Array.isArray(saved.rooms)) {
-            const migrated = {
-              ...createDefaultState(),
-              ...saved,
-              version: 2,
-              settings: { ...createDefaultState().settings, ...saved.settings },
-              rooms: saved.rooms.map((room) => ({
-                sanitationAmount: 0,
-                tvAmount: 0,
-                internetAmount: 0,
-                managementAmount: 0,
-                otherAmount: 0,
-                paymentMethod: "微信",
-                ...room,
-              })),
-              meterRecords: Array.isArray(saved.meterRecords)
-                ? saved.meterRecords.map((record) => ({
-                    inputMode: record.inputMode || "meter-reading",
-                    ...record,
-                  }))
-                : [],
-              receipts: Array.isArray(saved.receipts)
-                ? saved.receipts.map((receipt) => ({
-                    rentAmountPrefix: "",
-                    ...receipt,
-                  }))
-                : [],
-            };
-            if (migrated.settings.receiptTitle === "租金收款收据") {
-              migrated.settings.receiptTitle = "房租、水、电费（专用）收据";
-            }
-            if (!migrated.settings.receiptDefaultDate) {
-              migrated.settings.receiptDefaultDate = toLocalDateInput(new Date());
-            }
-            if (typeof migrated.settings.rentAmountPrefix !== "string") {
-              migrated.settings.rentAmountPrefix = "";
-            }
+            const migrated = normalizeState(saved);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
             return migrated;
           }
@@ -2387,6 +2638,257 @@
           showToast("保存失败，请检查浏览器存储空间");
           return false;
         }
+      }
+
+      function createEmptyRestoreDraft() {
+        return {
+          fileName: "",
+          exportedAt: "",
+          normalizedState: null,
+          error: "",
+        };
+      }
+
+      function createBackupPayload(source = state) {
+        const data = JSON.parse(
+          JSON.stringify({
+            version: 2,
+            settings: source.settings,
+            rooms: source.rooms,
+            meterRecords: source.meterRecords,
+            receipts: source.receipts,
+          }),
+        );
+        return {
+          format: BACKUP_FORMAT,
+          formatVersion: BACKUP_FORMAT_VERSION,
+          exportedAt: new Date().toISOString(),
+          appDataVersion: 2,
+          data,
+        };
+      }
+
+      function backupFileTimestamp(date = new Date()) {
+        const parts = [
+          date.getFullYear(),
+          String(date.getMonth() + 1).padStart(2, "0"),
+          String(date.getDate()).padStart(2, "0"),
+          "-",
+          String(date.getHours()).padStart(2, "0"),
+          String(date.getMinutes()).padStart(2, "0"),
+          String(date.getSeconds()).padStart(2, "0"),
+        ];
+        return parts.join("");
+      }
+
+      function downloadBackupFile() {
+        try {
+          const payload = createBackupPayload();
+          const blob = new Blob([JSON.stringify(payload, null, 2)], {
+            type: "application/json;charset=utf-8",
+          });
+          const buildingName = state.settings.buildingName || "未命名楼栋";
+          triggerBlobDownload(
+            blob,
+            `房务通-${buildingName}-${backupFileTimestamp()}.json`,
+          );
+          showToast("备份文件已下载，请妥善保管");
+        } catch (error) {
+          console.error(error);
+          showToast("备份生成失败，请重试");
+        }
+      }
+
+      function formatBackupTime(value) {
+        const date = new Date(value);
+        if (!value || Number.isNaN(date.getTime())) return "未知时间";
+        return date.toLocaleString("zh-CN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        });
+      }
+
+      function requireBackupString(value, label) {
+        if (typeof value !== "string" || !value.trim()) {
+          throw new Error(`${label}缺失或格式不正确`);
+        }
+        return value.trim();
+      }
+
+      function requireBackupId(value, label) {
+        const id = requireBackupString(value, label);
+        if (!/^[A-Za-z0-9._:-]{1,160}$/.test(id)) {
+          throw new Error(`${label}包含不允许的字符`);
+        }
+        return id;
+      }
+
+      function validateBackupPayload(payload) {
+        if (!isPlainObject(payload) || payload.format !== BACKUP_FORMAT) {
+          throw new Error("这不是房务通生成的备份文件");
+        }
+        if (payload.formatVersion > BACKUP_FORMAT_VERSION) {
+          throw new Error("该备份由更高版本系统生成，请升级系统后再恢复");
+        }
+        if (payload.formatVersion !== BACKUP_FORMAT_VERSION) {
+          throw new Error("备份格式版本不受支持");
+        }
+        if (!payload.exportedAt || Number.isNaN(new Date(payload.exportedAt).getTime())) {
+          throw new Error("备份时间缺失或格式不正确");
+        }
+        const saved = payload.data;
+        if (!isPlainObject(saved) || ![1, 2].includes(saved.version)) {
+          throw new Error("备份中的应用数据版本不受支持");
+        }
+        if (payload.appDataVersion !== saved.version) {
+          throw new Error("备份标注的数据版本与实际内容不一致");
+        }
+        if (
+          !isPlainObject(saved.settings) ||
+          !Array.isArray(saved.rooms) ||
+          !Array.isArray(saved.meterRecords) ||
+          !Array.isArray(saved.receipts)
+        ) {
+          throw new Error("备份内容不完整，缺少房间、水电或收据数据");
+        }
+
+        const roomIds = new Set();
+        const roomNumbers = new Set();
+        saved.rooms.forEach((room, index) => {
+          if (!isPlainObject(room)) throw new Error(`第 ${index + 1} 条房间数据格式不正确`);
+          const roomId = requireBackupId(room.id, `第 ${index + 1} 条房间编号`);
+          const number = requireBackupString(room.number, `第 ${index + 1} 条房号`);
+          if (roomIds.has(roomId)) throw new Error(`存在重复的房间编号：${roomId}`);
+          if (roomNumbers.has(number)) throw new Error(`存在重复房号：${number}`);
+          roomIds.add(roomId);
+          roomNumbers.add(number);
+        });
+
+        const meterIds = new Set();
+        saved.meterRecords.forEach((record, index) => {
+          if (!isPlainObject(record)) throw new Error(`第 ${index + 1} 条水电记录格式不正确`);
+          const recordId = requireBackupId(record.id, `第 ${index + 1} 条水电记录编号`);
+          if (meterIds.has(recordId)) throw new Error(`存在重复的水电记录编号：${recordId}`);
+          if (!roomIds.has(record.roomId)) {
+            throw new Error(`第 ${index + 1} 条水电记录关联的房间不存在`);
+          }
+          meterIds.add(recordId);
+        });
+
+        const receiptIds = new Set();
+        const receiptSerials = new Set();
+        saved.receipts.forEach((receipt, index) => {
+          if (!isPlainObject(receipt)) throw new Error(`第 ${index + 1} 条收据记录格式不正确`);
+          const receiptId = requireBackupId(receipt.id, `第 ${index + 1} 条收据记录编号`);
+          const serial = requireBackupString(receipt.serial, `第 ${index + 1} 条收据号码`);
+          if (receiptIds.has(receiptId)) throw new Error(`存在重复的收据记录编号：${receiptId}`);
+          if (receiptSerials.has(serial)) throw new Error(`存在重复的收据号码：${serial}`);
+          if (!roomIds.has(receipt.roomId)) {
+            throw new Error(`第 ${index + 1} 条收据记录关联的房间不存在`);
+          }
+          receiptIds.add(receiptId);
+          receiptSerials.add(serial);
+        });
+
+        return normalizeState(saved);
+      }
+
+      async function prepareRestoreFile(file) {
+        restoreDraft = createEmptyRestoreDraft();
+        restoreDraft.fileName = file?.name || "";
+        try {
+          if (!file) throw new Error("请选择备份文件");
+          if (!file.name.toLowerCase().endsWith(".json")) {
+            throw new Error("请选择扩展名为 .json 的备份文件");
+          }
+          if (file.size > MAX_BACKUP_FILE_SIZE) {
+            throw new Error("备份文件超过 10MB，无法导入");
+          }
+          const text = (await file.text()).replace(/^\uFEFF/, "");
+          if (!text.trim()) throw new Error("备份文件为空");
+          let payload;
+          try {
+            payload = JSON.parse(text);
+          } catch {
+            throw new Error("文件内容不是有效的 JSON 数据");
+          }
+          restoreDraft.normalizedState = validateBackupPayload(payload);
+          restoreDraft.exportedAt = payload.exportedAt;
+        } catch (error) {
+          restoreDraft.normalizedState = null;
+          restoreDraft.error = error instanceof Error ? error.message : "备份读取失败";
+        }
+        renderView();
+      }
+
+      function resetTransientWorkspace() {
+        roomQuery = "";
+        meterPeriodFilter = CURRENT_PERIOD;
+        receiptPeriodFilter = CURRENT_PERIOD;
+        selectedReceiptIds.clear();
+        receiptCreateMode = "single";
+        batchPreviewRoomId = "";
+        clearReceiptPreviewUrl();
+        meterContext = { roomId: state.rooms[0]?.id || "", period: CURRENT_PERIOD };
+        receiptContext = { roomId: occupiedRooms()[0]?.id || "", period: CURRENT_PERIOD };
+        batchReceiptDraft = {
+          period: CURRENT_PERIOD,
+          roomIds: new Set(),
+          paymentMethod: "room-default",
+          receivedAt:
+            state.settings.receiptDefaultDate || toLocalDateInput(new Date()),
+          issuer: state.settings.payee,
+          payee: state.settings.payee,
+          note: "",
+        };
+        importDraft = {
+          period: CURRENT_PERIOD,
+          mode: "template",
+          stage: "idle",
+          progress: 0,
+          progressText: "",
+          rows: [],
+          fileName: "",
+          result: null,
+          sourceImage: null,
+          alignment: null,
+          dragTarget: null,
+        };
+      }
+
+      async function restorePreparedBackup() {
+        if (!restoreDraft.normalizedState) {
+          showToast("请先选择并检查备份文件");
+          return;
+        }
+        const summary = backupSummary(restoreDraft.normalizedState);
+        const approved = await askConfirm(
+          `恢复后将用“${summary.buildingName}”的备份完整替换当前设备数据，包含 ${summary.rooms} 间房、${summary.meterRecords} 条水电记录和 ${summary.receipts} 张收据。确定继续吗？`,
+          "完整替换并恢复",
+        );
+        if (!approved) return;
+
+        const restoredState = JSON.parse(JSON.stringify(restoreDraft.normalizedState));
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(restoredState));
+        } catch {
+          showToast("恢复失败，当前数据未改变，请检查浏览器存储空间");
+          return;
+        }
+        state = restoredState;
+        restoreDraft = createEmptyRestoreDraft();
+        resetTransientWorkspace();
+        activeView = "room-overview";
+        expandedGroups.add("rooms");
+        renderChrome();
+        renderView();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        showToast("备份已恢复，全部数据已更新");
       }
 
       function makeId(prefix) {
@@ -2536,6 +3038,7 @@
           "room-occupied": () => renderRoomList("occupied"),
           "room-vacant": () => renderRoomList("vacant"),
           "room-settings": renderRoomSettings,
+          "data-backup": renderDataBackup,
           "meter-entry": renderMeterEntry,
           "meter-import": renderMeterImport,
           "meter-records": renderMeterRecords,
@@ -2674,6 +3177,113 @@
             </div>
           </section>
         `;
+      }
+
+      function renderDataBackup() {
+        const current = backupSummary(state);
+        const preview = restoreDraft.normalizedState
+          ? backupSummary(restoreDraft.normalizedState)
+          : null;
+        return `
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">数据备份与恢复</h2>
+                <p class="panel-subtitle">把当前设备的数据保存成独立文件，换电脑或手机后可完整恢复</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="backup-summary-grid" aria-label="当前数据概览">
+                ${backupSummaryCards(current)}
+              </div>
+              <div class="backup-action-grid">
+                <article class="backup-card">
+                  <h3>备份当前数据</h3>
+                  <p>下载房间、租客、水电、模板设置和历史收据数据。收据图片可以根据记录重新生成。</p>
+                  <button class="backup-primary-action" type="button" data-action="download-backup">
+                    <span>
+                      <span class="upload-icon" aria-hidden="true">备</span>
+                      <strong>立即备份</strong>
+                      <small>下载一个 JSON 备份文件</small>
+                    </span>
+                  </button>
+                </article>
+                <article class="backup-card">
+                  <h3>从备份恢复</h3>
+                  <p>选择本系统生成的备份文件。系统会先检查并显示内容，确认前不会修改当前数据。</p>
+                  <label class="upload-zone" id="backup-drop-zone" for="backup-file-input">
+                    <span>
+                      <span class="upload-icon" aria-hidden="true">恢</span>
+                      <strong>${restoreDraft.fileName ? escapeHtml(restoreDraft.fileName) : "点击选择或拖入备份文件"}</strong>
+                      <small>仅支持本系统生成的 JSON 文件，最大 10MB</small>
+                    </span>
+                    <input class="sr-only" id="backup-file-input" type="file" accept="application/json,.json" />
+                  </label>
+                </article>
+              </div>
+              ${
+                restoreDraft.error
+                  ? `<div class="restore-error" role="alert"><strong>无法读取该备份：</strong>${escapeHtml(restoreDraft.error)}</div>`
+                  : ""
+              }
+              ${
+                preview
+                  ? `
+                    <section class="restore-preview" aria-labelledby="restore-preview-title">
+                      <div class="restore-preview-head">
+                        <div>
+                          <h4 id="restore-preview-title">备份检查通过，可以恢复</h4>
+                          <p>备份时间：${escapeHtml(formatBackupTime(restoreDraft.exportedAt))} · 文件：${escapeHtml(restoreDraft.fileName)}</p>
+                        </div>
+                        <button class="button button-soft button-small" type="button" data-action="clear-restore-file">重新选择</button>
+                      </div>
+                      <div class="restore-preview-grid">
+                        ${backupSummaryCards(preview)}
+                      </div>
+                      <div class="actions">
+                        <button class="button button-secondary" type="button" data-action="download-backup">先备份当前数据</button>
+                        <button class="button button-primary" type="button" data-action="confirm-restore">确认恢复此备份</button>
+                      </div>
+                    </section>
+                  `
+                  : ""
+              }
+              <div class="backup-security-notice">
+                <span aria-hidden="true">⚠</span>
+                <div><strong>请妥善保管备份文件。</strong>普通 JSON 文件包含租客姓名、联系电话等资料，不要发送给不可信的人。原始抄表照片和已下载的 PNG 图片不会写入备份。</div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function backupSummary(source) {
+        return {
+          buildingName: source.settings?.buildingName || "未命名楼栋",
+          rooms: source.rooms?.length || 0,
+          occupied: source.rooms?.filter((room) => room.status === "occupied").length || 0,
+          meterRecords: source.meterRecords?.length || 0,
+          receipts: source.receipts?.length || 0,
+        };
+      }
+
+      function backupSummaryCards(summary) {
+        return [
+          ["楼栋名称", summary.buildingName],
+          ["房间", `${summary.rooms} 间`],
+          ["在租", `${summary.occupied} 间`],
+          ["水电记录", `${summary.meterRecords} 条`],
+          ["收据", `${summary.receipts} 张`],
+        ]
+          .map(
+            ([label, value]) => `
+              <div class="backup-summary-item">
+                <span>${label}</span>
+                <strong title="${escapeHtml(value)}">${escapeHtml(value)}</strong>
+              </div>
+            `,
+          )
+          .join("");
       }
 
       function roomTable(rooms, showTenant, allowDelete = false) {
@@ -6905,6 +7515,28 @@
       );
       drawerOverlay.addEventListener("click", () => closeDrawer());
 
+      viewContainer.addEventListener("dragover", (event) => {
+        const zone = event.target.closest?.("#backup-drop-zone");
+        if (!zone) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        zone.classList.add("dragging");
+      });
+
+      viewContainer.addEventListener("dragleave", (event) => {
+        const zone = event.target.closest?.("#backup-drop-zone");
+        if (!zone || zone.contains(event.relatedTarget)) return;
+        zone.classList.remove("dragging");
+      });
+
+      viewContainer.addEventListener("drop", (event) => {
+        const zone = event.target.closest?.("#backup-drop-zone");
+        if (!zone) return;
+        event.preventDefault();
+        zone.classList.remove("dragging");
+        prepareRestoreFile(event.dataTransfer.files?.[0]);
+      });
+
       document.addEventListener("pointerdown", (event) => {
         const canvas = event.target.closest?.("#alignment-canvas");
         if (!canvas || !importDraft.alignment) return;
@@ -7006,7 +7638,15 @@
         if (!actionButton) return;
         const action = actionButton.dataset.action;
 
-        if (action === "open-receipt-preview") {
+        if (action === "download-backup") {
+          downloadBackupFile();
+        } else if (action === "clear-restore-file") {
+          restoreDraft = createEmptyRestoreDraft();
+          renderView();
+          window.setTimeout(() => document.getElementById("backup-file-input")?.focus(), 30);
+        } else if (action === "confirm-restore") {
+          await restorePreparedBackup();
+        } else if (action === "open-receipt-preview") {
           if (!receiptPreviewUrl) {
             showToast("预览正在生成，请稍候");
             return;
@@ -7149,29 +7789,8 @@
         } else if (action === "reset-data") {
           if (await askConfirm("恢复默认数据将清除当前设备上的全部房间、水电和收据记录。确定继续吗？", "清除并恢复")) {
             state = createDefaultState();
-            meterContext = { roomId: state.rooms[0].id, period: CURRENT_PERIOD };
-            receiptContext = { roomId: "", period: CURRENT_PERIOD };
-            receiptCreateMode = "single";
-            selectedReceiptIds.clear();
-            batchReceiptDraft = {
-              period: CURRENT_PERIOD,
-              roomIds: new Set(),
-              paymentMethod: "room-default",
-              receivedAt:
-                state.settings.receiptDefaultDate || toLocalDateInput(new Date()),
-              issuer: state.settings.payee,
-              payee: state.settings.payee,
-              note: "",
-            };
-            importDraft = {
-              period: CURRENT_PERIOD,
-              stage: "idle",
-              progress: 0,
-              progressText: "",
-              rows: [],
-              fileName: "",
-              result: null,
-            };
+            restoreDraft = createEmptyRestoreDraft();
+            resetTransientWorkspace();
             saveState("已恢复24间默认房间");
             renderView();
           }
@@ -7241,6 +7860,9 @@
         }
         if (event.target.id === "meter-import-file" && event.target.files?.[0]) {
           recognizeMeterSheet(event.target.files[0]);
+        }
+        if (event.target.id === "backup-file-input" && event.target.files?.[0]) {
+          prepareRestoreFile(event.target.files[0]);
         }
         if (event.target.matches("[data-import-confirm]")) {
           const row = importDraft.rows[Number(event.target.dataset.importConfirm)];

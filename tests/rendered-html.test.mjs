@@ -235,3 +235,26 @@ test("snapshots and renders a customizable rent amount prefix", async () => {
   assert.match(html, /\? `\$\{rentAmountPrefix\}　¥ \$\{formatMoney\(receipt\.rent\)\}`/);
   assert.match(html, /state\.settings\.rentAmountPrefix = String/);
 });
+
+test("exports and safely restores complete local backups", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /data-backup/);
+  assert.match(html, /fangwutong-single-building-backup/);
+  assert.match(html, /BACKUP_FORMAT_VERSION = 1/);
+  assert.match(html, /MAX_BACKUP_FILE_SIZE = 10 \* 1024 \* 1024/);
+  assert.match(html, /createBackupPayload/);
+  assert.match(html, /settings: source\.settings/);
+  assert.match(html, /rooms: source\.rooms/);
+  assert.match(html, /meterRecords: source\.meterRecords/);
+  assert.match(html, /receipts: source\.receipts/);
+  assert.match(html, /validateBackupPayload/);
+  assert.match(html, /normalizeState\(saved\)/);
+  assert.match(html, /存在重复房号/);
+  assert.match(html, /关联的房间不存在/);
+  assert.match(html, /data-action="confirm-restore"/);
+  assert.match(html, /完整替换并恢复/);
+  assert.match(html, /resetTransientWorkspace/);
+  assert.match(html, /id="backup-drop-zone"/);
+});

@@ -4386,21 +4386,30 @@
             needsReview: true,
           };
         }
-        const groups = [];
+        let groups = [];
         const maxDigitWidth = Math.max(12, (maxY - minY + 1) * 0.62);
         for (const bound of bounds) {
           const runWidth = bound.right - bound.left + 1;
           if (runWidth > maxDigitWidth * 1.25) {
             const pieces = Math.max(2, Math.round(runWidth / maxDigitWidth));
-            for (let piece = 0; piece < pieces; piece += 1) {
-              groups.push({
-                left: Math.round(bound.left + (runWidth * piece) / pieces),
-                right: Math.round(bound.left + (runWidth * (piece + 1)) / pieces - 1),
-                forcedSplit: true,
-              });
-            }
+            groups.push(...splitDigitRunAtValleys(bound, pieces, projection));
           } else {
             groups.push(bound);
+          }
+        }
+        const numericMinimum = Number(minimumValue);
+        if (
+          kind === "reading" &&
+          Number.isFinite(numericMinimum) &&
+          Number.isInteger(numericMinimum)
+        ) {
+          const expectedDigits = String(Math.max(0, Math.trunc(numericMinimum))).length;
+          if (groups.length < expectedDigits && expectedDigits <= 7) {
+            groups = splitDigitRunAtValleys(
+              { left: bounds[0].left, right: bounds[bounds.length - 1].right },
+              expectedDigits,
+              projection,
+            );
           }
         }
         const output = [];
@@ -4452,6 +4461,7 @@
             { x: 0, y: 0, width: digitCanvas.width, height: digitCanvas.height },
             1,
             session,
+            kind === "reading",
           );
           if (result.digit !== null) output.push(result);
           if (group.forcedSplit || result.confidence < 0.72) uncertain = true;
@@ -4494,6 +4504,43 @@
           image: fieldCanvas.toDataURL("image/jpeg", 0.74),
           needsReview: uncertain || !Number.isFinite(confidence) || confidence < 0.72,
         };
+      }
+
+      function splitDigitRunAtValleys(bound, pieces, projection) {
+        const width = bound.right - bound.left + 1;
+        if (pieces <= 1 || width < pieces * 3) return [{ ...bound }];
+        const cuts = [];
+        let previousCut = bound.left - 1;
+        for (let piece = 1; piece < pieces; piece += 1) {
+          const target = bound.left + (width * piece) / pieces;
+          const radius = Math.max(2, Math.round(width / pieces * 0.3));
+          const minimum = Math.max(previousCut + 3, Math.round(target - radius));
+          const maximum = Math.min(
+            bound.right - (pieces - piece) * 3,
+            Math.round(target + radius),
+          );
+          let best = Math.round(target);
+          let bestInk = Infinity;
+          for (let x = minimum; x <= maximum; x += 1) {
+            const ink =
+              (projection[x - 1] || 0) +
+              projection[x] * 2 +
+              (projection[x + 1] || 0) +
+              Math.abs(x - target) * 0.08;
+            if (ink < bestInk) {
+              bestInk = ink;
+              best = x;
+            }
+          }
+          cuts.push(best);
+          previousCut = best;
+        }
+        const edges = [bound.left, ...cuts, bound.right + 1];
+        return edges.slice(0, -1).map((left, index) => ({
+          left,
+          right: edges[index + 1] - 1,
+          forcedSplit: true,
+        }));
       }
 
       function choosePlausibleReading(output, minimumValue) {
@@ -4929,7 +4976,7 @@
         };
       }
 
-      async function recognizeDigitBox(canvas, box, scale, session) {
+      async function recognizeDigitBox(canvas, box, scale, session, highAccuracy = false) {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         const padding = 10;
         const x = Math.round((box.x + padding) * scale);
@@ -5002,31 +5049,26 @@
             );
           }
         }
-        let mass = 0;
-        let massX = 0;
-        let massY = 0;
-        strengthened.forEach((value, index) => {
-          mass += value;
-          massX += (index % 28) * value;
-          massY += Math.floor(index / 28) * value;
-        });
-        const shiftX = mass ? Math.round(13.5 - massX / mass) : 0;
-        const shiftY = mass ? Math.round(13.5 - massY / mass) : 0;
-        const tensorData = new Float32Array(28 * 28);
-        for (let py = 0; py < 28; py += 1) {
-          for (let px = 0; px < 28; px += 1) {
-            const targetX = px + shiftX;
-            const targetY = py + shiftY;
-            if (targetX < 0 || targetX >= 28 || targetY < 0 || targetY >= 28) continue;
-            tensorData[targetY * 28 + targetX] = strengthened[py * 28 + px];
-          }
-        }
+        const centeredRaw = centerDigitTensor(rawTensor);
+        const centeredStrengthened = centerDigitTensor(strengthened);
+        const variants = highAccuracy
+          ? [
+              { tensor: centeredRaw, weight: 0.32 },
+              { tensor: centeredStrengthened, weight: 0.43 },
+              { tensor: centerDigitTensor(deskewDigitTensor(strengthened)), weight: 0.25 },
+            ]
+          : [{ tensor: centeredStrengthened, weight: 1 }];
         const inputName = session.inputNames[0];
         const outputName = session.outputNames[0];
-        const output = await session.run({
-          [inputName]: new ort.Tensor("float32", tensorData, [1, 1, 28, 28]),
-        });
-        const probabilities = softmax(Array.from(output[outputName].data));
+        const probabilities = Array(10).fill(0);
+        for (const variant of variants) {
+          const output = await session.run({
+            [inputName]: new ort.Tensor("float32", variant.tensor, [1, 1, 28, 28]),
+          });
+          softmax(Array.from(output[outputName].data)).forEach((probability, index) => {
+            probabilities[index] += probability * variant.weight;
+          });
+        }
         let digit = 0;
         for (let index = 1; index < probabilities.length; index += 1) {
           if (probabilities[index] > probabilities[digit]) digit = index;
@@ -5040,6 +5082,65 @@
           confidence: probabilities[digit],
           candidates,
         };
+      }
+
+      function centerDigitTensor(source) {
+        let mass = 0;
+        let massX = 0;
+        let massY = 0;
+        source.forEach((value, index) => {
+          mass += value;
+          massX += (index % 28) * value;
+          massY += Math.floor(index / 28) * value;
+        });
+        const shiftX = mass ? Math.round(13.5 - massX / mass) : 0;
+        const shiftY = mass ? Math.round(13.5 - massY / mass) : 0;
+        const centered = new Float32Array(28 * 28);
+        for (let py = 0; py < 28; py += 1) {
+          for (let px = 0; px < 28; px += 1) {
+            const targetX = px + shiftX;
+            const targetY = py + shiftY;
+            if (targetX < 0 || targetX >= 28 || targetY < 0 || targetY >= 28) continue;
+            centered[targetY * 28 + targetX] = source[py * 28 + px];
+          }
+        }
+        return centered;
+      }
+
+      function deskewDigitTensor(source) {
+        let mass = 0;
+        let centerX = 0;
+        let centerY = 0;
+        source.forEach((value, index) => {
+          mass += value;
+          centerX += (index % 28) * value;
+          centerY += Math.floor(index / 28) * value;
+        });
+        if (!mass) return source;
+        centerX /= mass;
+        centerY /= mass;
+        let crossMoment = 0;
+        let verticalMoment = 0;
+        source.forEach((value, index) => {
+          const x = index % 28;
+          const y = Math.floor(index / 28);
+          crossMoment += (x - centerX) * (y - centerY) * value;
+          verticalMoment += (y - centerY) * (y - centerY) * value;
+        });
+        const skew = verticalMoment ? Math.max(-0.55, Math.min(0.55, crossMoment / verticalMoment)) : 0;
+        const deskewed = new Float32Array(28 * 28);
+        for (let y = 0; y < 28; y += 1) {
+          for (let x = 0; x < 28; x += 1) {
+            const targetX = Math.round(x - skew * (y - centerY));
+            if (targetX >= 0 && targetX < 28) {
+              deskewed[y * 28 + targetX] = Math.max(
+                deskewed[y * 28 + targetX],
+                source[y * 28 + x],
+              );
+            }
+          }
+        }
+        return deskewed;
       }
 
       function softmax(values) {

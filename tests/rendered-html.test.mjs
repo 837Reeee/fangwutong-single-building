@@ -76,10 +76,9 @@ test("contains default room, billing, and receipt rules", async () => {
   assert.match(html, /RENT-\$\{period\.replace/);
   assert.match(html, /本期读数不能低于上期读数/);
   assert.match(html, /该房间存在水电或收据记录/);
-  assert.match(html, /inputMode: "monthly-usage"/);
-  assert.match(html, /TEMPLATE_VERSION = "a4-usage-v1"/);
+  assert.match(html, /record\.inputMode === "monthly-usage"/);
   assert.match(html, /mnist-12\.onnx/);
-  assert.match(html, /四角定位标记/);
+  assert.match(html, /纸张边缘、数据范围和三列位置/);
   assert.match(html, /房租、水、电费（专用）收据/);
   assert.match(html, /chineseUppercaseMoney/);
   assert.match(html, /sanitationAmount/);
@@ -195,6 +194,10 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.match(html, /values\.currentWater < values\.prevWater/);
   assert.match(html, /values\.currentElectric < values\.prevElectric/);
   assert.match(html, /已核对房号和全部读数/);
+  assert.doesNotMatch(html, /固定 A4 模板|下载模板|打印 A4 模板/);
+  assert.doesNotMatch(html, /set-import-mode|download-meter-template|print-meter-template/);
+  assert.doesNotMatch(html, /createMeterTemplateCanvas|findCornerMarkers|rectifyTemplateImage|recognizeTemplateField/);
+  assert.doesNotMatch(html, /inputMode: "monthly-usage"/);
 });
 
 test("previews final single and batch receipts before saving", async () => {

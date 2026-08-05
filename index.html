@@ -1725,66 +1725,6 @@
         font-size: 11px;
       }
 
-      .import-format-switch {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        margin-bottom: 18px;
-      }
-
-      .import-format-card {
-        display: flex;
-        min-height: 82px;
-        align-items: center;
-        gap: 12px;
-        padding: 14px 16px;
-        border: 1px solid var(--slate-200);
-        border-radius: 14px;
-        background: white;
-        color: var(--slate-700);
-        cursor: pointer;
-        text-align: left;
-      }
-
-      .import-format-card[aria-pressed="true"] {
-        border-color: #79add7;
-        background: var(--blue-50);
-        box-shadow: inset 0 0 0 1px rgba(35, 104, 170, 0.08);
-      }
-
-      .import-format-icon {
-        display: grid;
-        width: 38px;
-        height: 38px;
-        flex: 0 0 38px;
-        place-items: center;
-        border-radius: 11px;
-        background: var(--slate-100);
-        color: var(--blue-700);
-        font-weight: 800;
-      }
-
-      .import-format-card[aria-pressed="true"] .import-format-icon {
-        background: var(--blue-100);
-      }
-
-      .import-format-card strong,
-      .import-format-card small {
-        display: block;
-      }
-
-      .import-format-card strong {
-        color: var(--slate-900);
-        font-size: 12px;
-      }
-
-      .import-format-card small {
-        margin-top: 4px;
-        color: var(--slate-500);
-        font-size: 10px;
-        line-height: 1.5;
-      }
-
       .alignment-workspace {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 250px;
@@ -2196,10 +2136,6 @@
 
         .review-summary {
           grid-template-columns: 1fr 1fr;
-        }
-
-        .import-format-switch {
-          grid-template-columns: 1fr;
         }
 
         .ocr-cell {
@@ -2848,28 +2784,7 @@
       const MAX_BACKUP_FILE_SIZE = 10 * 1024 * 1024;
       const MIRROR_HINT_KEY = "fangwutong.mobile-mirror-tip.v1";
       const CURRENT_PERIOD = toLocalDateInput(new Date()).slice(0, 7);
-      const TEMPLATE_VERSION = "a4-usage-v1";
       const FREEFORM_TEMPLATE_VERSION = "freeform-3col-v1";
-      const TEMPLATE = {
-        width: 2480,
-        height: 3508,
-        marker: 92,
-        markerCenters: [
-          [126, 126],
-          [2354, 126],
-          [2354, 3382],
-          [126, 3382],
-        ],
-        tableX: 180,
-        tableY: 430,
-        headerHeight: 116,
-        rowHeight: 113,
-        columns: [
-          { key: "roomNumber", x: 180, width: 520, digits: 4, integerDigits: 4 },
-          { key: "waterUsage", x: 700, width: 800, digits: 7, integerDigits: 5 },
-          { key: "electricUsage", x: 1500, width: 800, digits: 7, integerDigits: 5 },
-        ],
-      };
 
       const MENU = [
         {
@@ -2890,7 +2805,7 @@
           icon: "表",
           items: [
             { id: "meter-entry", label: "本月录入", description: "录入水电读数并自动计算费用" },
-            { id: "meter-import", label: "批量导入", description: "识别固定模板或自由三列手写水电照片" },
+            { id: "meter-import", label: "批量导入", description: "识别自由三列手写水电照片" },
             { id: "meter-records", label: "抄表记录", description: "查询和维护历史水电记录" },
             { id: "meter-settings", label: "费用设置", description: "设置水费与电费单价" },
           ],
@@ -2950,7 +2865,6 @@
       let receiptContext = { roomId: occupiedRooms()[0]?.id || "", period: CURRENT_PERIOD };
       let importDraft = {
         period: CURRENT_PERIOD,
-        mode: "template",
         stage: "idle",
         progress: 0,
         progressText: "",
@@ -3299,7 +3213,6 @@
         };
         importDraft = {
           period: CURRENT_PERIOD,
-          mode: "template",
           stage: "idle",
           progress: 0,
           progressText: "",
@@ -3943,7 +3856,7 @@
               <div class="panel-body">
                 <div class="notice">
                   <strong>记录来源：</strong>
-                  <span>${escapeHtml(record.importBatchId || "历史导入批次")} · ${escapeHtml(record.templateVersion || TEMPLATE_VERSION)}</span>
+                  <span>${escapeHtml(record.importBatchId || "历史导入批次")} · ${escapeHtml(record.templateVersion || "a4-usage-v1")}</span>
                 </div>
                 <form id="meter-usage-form" novalidate>
                   <input type="hidden" name="recordId" value="${record.id}" />
@@ -4005,40 +3918,28 @@
 
       function renderMeterImport() {
         const analysis = analyzeImportRows();
-        const isFreeform = importDraft.mode === "freeform";
         return `
           <section class="panel">
             <div class="panel-header">
               <div>
                 <h2 class="panel-title">手写水电表批量导入</h2>
-                <p class="panel-subtitle">${isFreeform ? "识别无表格线的三列手写照片，数据按累计表读数计费" : "识别系统固定 A4 表格中的房号和月度水电用量"}</p>
+                <p class="panel-subtitle">识别无表格线的三列手写照片，数据按累计表读数计费</p>
               </div>
-              <span class="source-badge">${isFreeform ? `自由三列 ${FREEFORM_TEMPLATE_VERSION}` : `固定模板 ${TEMPLATE_VERSION}`}</span>
+              <span class="source-badge">自由三列 ${FREEFORM_TEMPLATE_VERSION}</span>
             </div>
             <div class="panel-body">
-              <div class="import-format-switch" aria-label="选择导入格式">
-                <button class="import-format-card" type="button" data-action="set-import-mode" data-mode="template" aria-pressed="${!isFreeform}">
-                  <span class="import-format-icon" aria-hidden="true">格</span>
-                  <span><strong>固定 A4 模板</strong><small>带定位标记和数字格，导入纸上填写的本月实际用量</small></span>
-                </button>
-                <button class="import-format-card" type="button" data-action="set-import-mode" data-mode="freeform" aria-pressed="${isFreeform}">
-                  <span class="import-format-icon" aria-hidden="true">手</span>
-                  <span><strong>自由手写三列</strong><small>无表格线也可以，依次填写房间号、本期水表、本期电表读数</small></span>
-                </button>
-              </div>
-
               <div class="import-steps" aria-label="导入步骤">
                 <div class="import-step">
                   <span class="import-step-number">1</span>
-                  <div><strong>${isFreeform ? "拍摄整张纸" : "打印模板"}</strong><span>${isFreeform ? "保持三列大致对齐，纸张边缘尽量完整" : "选择账期后打印固定 A4 表格"}</span></div>
+                  <div><strong>拍摄整张纸</strong><span>保持三列大致对齐，纸张边缘尽量完整</span></div>
                 </div>
                 <div class="import-step">
                   <span class="import-step-number">2</span>
-                  <div><strong>${isFreeform ? "校正与识别" : "拍照识别"}</strong><span>${isFreeform ? "拖动四角、数据范围和列分隔线后开始识别" : "三列数据全部手写，四角标记需完整入镜"}</span></div>
+                  <div><strong>校正与识别</strong><span>拖动四角、数据范围和列分隔线后开始识别</span></div>
                 </div>
                 <div class="import-step">
                   <span class="import-step-number">3</span>
-                  <div><strong>核对入账</strong><span>${isFreeform ? "补齐上期读数并确认每一行后保存" : "修正红色项目后保存整月数据"}</span></div>
+                  <div><strong>核对入账</strong><span>补齐上期读数并确认每一行后保存</span></div>
                 </div>
               </div>
 
@@ -4047,14 +3948,7 @@
                   <span class="field-label">导入账期<span class="required">*</span></span>
                   <input class="field-input" id="import-period" type="month" value="${importDraft.period}" ${importDraft.stage === "processing" ? "disabled" : ""} />
                 </label>
-                ${
-                  isFreeform
-                    ? `<span class="field-help">纸上第二、三列填写本期累计表读数，不是本月用量。</span>`
-                    : `<div class="actions">
-                        <button class="button button-secondary" type="button" data-action="download-meter-template">下载模板</button>
-                        <button class="button button-primary" type="button" data-action="print-meter-template">打印 A4 模板</button>
-                      </div>`
-                }
+                <span class="field-help">纸上第二、三列填写本期累计表读数，不是本月用量。</span>
               </div>
 
               ${
@@ -4071,14 +3965,14 @@
                       </div>
                     </div>
                   `
-                  : importDraft.stage === "align" && isFreeform
+                  : importDraft.stage === "align"
                     ? renderAlignmentWorkspace()
                   : `
                     <label class="upload-zone" for="meter-import-file">
                       <span>
                         <span class="upload-icon" aria-hidden="true">识</span>
                         <strong>${importDraft.fileName ? escapeHtml(importDraft.fileName) : "拍照或选择手写表照片"}</strong>
-                        <small>支持 JPG、PNG、WebP；${isFreeform ? "请保持三列数据大致对齐并尽量拍到纸张边缘" : "请保持纸张四角完整、画面清晰并尽量避免阴影"}</small>
+                        <small>支持 JPG、PNG、WebP；请保持三列数据大致对齐并尽量拍到纸张边缘</small>
                       </span>
                       <input class="sr-only" id="meter-import-file" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" ${importDraft.stage === "processing" ? "disabled" : ""} />
                     </label>
@@ -4107,7 +4001,7 @@
                     <div class="panel-header" style="padding-inline:0">
                       <div>
                         <h2 class="panel-title">识别结果核对</h2>
-                        <p class="panel-subtitle">${isFreeform ? "本期读数来自照片，上期读数自动沿用历史；缺失时必须补录。每行均需人工确认。" : "原图切片与识别值并排显示；黄色或红色行必须勾选“已人工核对”"}</p>
+                        <p class="panel-subtitle">本期读数来自照片，上期读数自动沿用历史；缺失时必须补录。每行均需人工确认。</p>
                       </div>
                     </div>
                     <div class="review-summary" aria-label="识别汇总">
@@ -4118,16 +4012,16 @@
                     </div>
                     <div class="data-table-wrap">
                       <table class="data-table">
-                        <thead><tr>${isFreeform ? "<th>行</th><th>房间号</th><th>水表读数</th><th>电表读数</th><th>用量与费用</th><th>状态与核对</th>" : "<th>行</th><th>房间号</th><th>用水量</th><th>用电量</th><th>费用</th><th>状态与核对</th>"}</tr></thead>
+                        <thead><tr><th>行</th><th>房间号</th><th>水表读数</th><th>电表读数</th><th>用量与费用</th><th>状态与核对</th></tr></thead>
                         <tbody>
-                          ${importDraft.rows.map((row, index) => isFreeform ? freeformReviewRow(row, index, analysis.rows[index]) : importReviewRow(row, index, analysis.rows[index])).join("")}
+                          ${importDraft.rows.map((row, index) => freeformReviewRow(row, index, analysis.rows[index])).join("")}
                         </tbody>
                       </table>
                     </div>
                     <p class="form-error" id="meter-import-error" role="alert">${analysis.invalid ? `还有 ${analysis.invalid} 行存在错误，请修正后再导入。` : analysis.needsReview ? `还有 ${analysis.needsReview} 行需要人工核对。` : ""}</p>
                     <div class="form-actions">
                       <button class="button button-secondary" type="button" data-action="discard-meter-import">放弃本次识别</button>
-                      ${isFreeform ? '<button class="button button-secondary" type="button" data-action="add-freeform-row">＋ 增加一行</button>' : ""}
+                      <button class="button button-secondary" type="button" data-action="add-freeform-row">＋ 增加一行</button>
                       <button class="button button-primary" type="button" data-action="commit-meter-import" ${analysis.invalid || analysis.needsReview || !analysis.valid ? "disabled" : ""}>确认导入 ${analysis.valid} 条</button>
                     </div>
                   `
@@ -4185,37 +4079,6 @@
             </aside>
           </div>
           <p class="privacy-line">照片仅保存在本次页面内存中，刷新或离开后即清除，不写入本地业务数据。</p>
-        `;
-      }
-
-      function importReviewRow(row, index, result) {
-        if (row.skipped) return "";
-        const statusClass = result.invalid ? "error" : result.needsReview ? "warning" : "ok";
-        const statusText = result.invalid
-          ? result.errors[0]
-          : result.needsReview
-            ? "需要人工核对"
-            : result.existing
-              ? "有效 · 将更新"
-              : "有效 · 将新增";
-        return `
-          <tr>
-            <td data-label="行">${index + 1}</td>
-            ${importFieldCell(row, index, "roomNumber", "房间号", result.fieldErrors.roomNumber)}
-            ${importFieldCell(row, index, "waterUsage", "用水量", result.fieldErrors.waterUsage)}
-            ${importFieldCell(row, index, "electricUsage", "用电量", result.fieldErrors.electricUsage)}
-            <td data-label="费用">
-              <span class="table-primary">¥${formatMoney(result.waterCharge + result.electricCharge)}</span>
-              <small style="display:block;color:var(--slate-500);margin-top:3px">水 ¥${formatMoney(result.waterCharge)} · 电 ¥${formatMoney(result.electricCharge)}</small>
-            </td>
-            <td data-label="状态与核对">
-              <span class="review-status ${statusClass}">${escapeHtml(statusText)}</span>
-              <label class="row-check" style="margin-top:8px">
-                <input type="checkbox" data-import-confirm="${index}" ${row.confirmed ? "checked" : ""} />
-                已人工核对本行
-              </label>
-            </td>
-          </tr>
         `;
       }
 
@@ -4305,69 +4168,7 @@
       }
 
       function analyzeImportRows() {
-        if (importDraft.mode === "freeform") return analyzeFreeformRows();
-        const active = importDraft.rows.filter((row) => !row.skipped);
-        const numberCounts = new Map();
-        for (const row of active) {
-          const number = String(row.roomNumber.value || "").trim();
-          if (number) numberCounts.set(number, (numberCounts.get(number) || 0) + 1);
-        }
-        const rows = importDraft.rows.map((row) => {
-          const fieldErrors = {};
-          if (row.skipped) {
-            return { invalid: false, needsReview: false, errors: [], fieldErrors, existing: false, waterCharge: 0, electricCharge: 0 };
-          }
-          const number = String(row.roomNumber.value || "").trim();
-          const waterText = String(row.waterUsage.value || "").trim();
-          const electricText = String(row.electricUsage.value || "").trim();
-          const waterUsage = Number(waterText);
-          const electricUsage = Number(electricText);
-          const room = state.rooms.find((candidate) => String(candidate.number) === number);
-          if (!number) fieldErrors.roomNumber = "房间号不能为空";
-          else if (!/^\d{1,12}$/.test(number)) fieldErrors.roomNumber = "房间号只能包含数字";
-          else if (!room) fieldErrors.roomNumber = "系统中不存在此房间";
-          else if (numberCounts.get(number) > 1) fieldErrors.roomNumber = "本表房间号重复";
-          if (!/^\d{1,5}(?:\.\d{1,2})?$/.test(waterText) || !Number.isFinite(waterUsage) || waterUsage < 0) {
-            fieldErrors.waterUsage = "请输入0至99999.99";
-          }
-          if (!/^\d{1,5}(?:\.\d{1,2})?$/.test(electricText) || !Number.isFinite(electricUsage) || electricUsage < 0) {
-            fieldErrors.electricUsage = "请输入0至99999.99";
-          }
-          const errors = Object.values(fieldErrors);
-          const recognitionUncertain = ["roomNumber", "waterUsage", "electricUsage"].some(
-            (key) => row[key].needsReview,
-          );
-          const needsReview = !errors.length && recognitionUncertain && !row.confirmed;
-          const existing = room
-            ? state.meterRecords.some(
-                (record) => record.roomId === room.id && record.period === importDraft.period,
-              )
-            : false;
-          return {
-            invalid: Boolean(errors.length),
-            needsReview,
-            errors,
-            fieldErrors,
-            existing,
-            room,
-            waterUsage: Number.isFinite(waterUsage) ? waterUsage : 0,
-            electricUsage: Number.isFinite(electricUsage) ? electricUsage : 0,
-            waterCharge: Number.isFinite(waterUsage)
-              ? Number((waterUsage * Number(state.settings.waterRate)).toFixed(2))
-              : 0,
-            electricCharge: Number.isFinite(electricUsage)
-              ? Number((electricUsage * Number(state.settings.electricRate)).toFixed(2))
-              : 0,
-          };
-        });
-        const considered = rows.filter((_, index) => !importDraft.rows[index].skipped);
-        return {
-          rows,
-          valid: considered.filter((row) => !row.invalid && !row.needsReview).length,
-          invalid: considered.filter((row) => row.invalid).length,
-          needsReview: considered.filter((row) => row.needsReview).length,
-          updates: considered.filter((row) => !row.invalid && row.existing).length,
-        };
+        return analyzeFreeformRows();
       }
 
       function analyzeFreeformRows() {
@@ -4517,119 +4318,6 @@
           input?.focus();
           if (position !== null) input?.setSelectionRange(position, position);
         }
-      }
-
-      function createMeterTemplateCanvas() {
-        const canvas = document.createElement("canvas");
-        canvas.width = TEMPLATE.width;
-        canvas.height = TEMPLATE.height;
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#071d33";
-        for (const [cx, cy] of TEMPLATE.markerCenters) {
-          ctx.fillRect(cx - TEMPLATE.marker / 2, cy - TEMPLATE.marker / 2, TEMPLATE.marker, TEMPLATE.marker);
-        }
-        ctx.textAlign = "center";
-        ctx.fillStyle = "#12263a";
-        ctx.font = "bold 82px Arial, sans-serif";
-        ctx.fillText(`${state.settings.buildingName} · 月度水电手写表`, canvas.width / 2, 210);
-        ctx.font = "34px Arial, sans-serif";
-        ctx.fillStyle = "#4e6478";
-        ctx.fillText(`账期：${formatPeriod(importDraft.period)}　｜　每格填写一个数字，空白小数位按 0 处理`, canvas.width / 2, 284);
-        ctx.fillStyle = "#12263a";
-        ctx.strokeStyle = "#12263a";
-        ctx.lineWidth = 5;
-        const tableBottom = TEMPLATE.tableY + TEMPLATE.headerHeight + TEMPLATE.rowHeight * 24;
-        ctx.strokeRect(TEMPLATE.tableX, TEMPLATE.tableY, 2120, tableBottom - TEMPLATE.tableY);
-        for (const column of TEMPLATE.columns.slice(1)) {
-          ctx.beginPath();
-          ctx.moveTo(column.x, TEMPLATE.tableY);
-          ctx.lineTo(column.x, tableBottom);
-          ctx.stroke();
-        }
-        ctx.beginPath();
-        ctx.moveTo(TEMPLATE.tableX, TEMPLATE.tableY + TEMPLATE.headerHeight);
-        ctx.lineTo(2300, TEMPLATE.tableY + TEMPLATE.headerHeight);
-        ctx.stroke();
-        ctx.font = "bold 38px Arial, sans-serif";
-        const headings = ["房间号", "用水量（吨）", "用电量（度）"];
-        TEMPLATE.columns.forEach((column, index) => {
-          ctx.fillText(headings[index], column.x + column.width / 2, TEMPLATE.tableY + 72);
-        });
-        for (let row = 0; row < 24; row += 1) {
-          const y = TEMPLATE.tableY + TEMPLATE.headerHeight + row * TEMPLATE.rowHeight;
-          if (row) {
-            ctx.strokeStyle = "#708090";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(TEMPLATE.tableX, y);
-            ctx.lineTo(2300, y);
-            ctx.stroke();
-          }
-          TEMPLATE.columns.forEach((column) => drawDigitGuides(ctx, column, row));
-        }
-        ctx.textAlign = "left";
-        ctx.fillStyle = "#5f7183";
-        ctx.font = "26px Arial, sans-serif";
-        ctx.fillText("书写要求：使用深色笔；数字不要连笔或超出格子；拍照时保留四个黑色定位方块。", 180, 3388);
-        ctx.textAlign = "right";
-        ctx.fillText(`模板 ${TEMPLATE_VERSION}`, 2300, 3388);
-        return canvas;
-      }
-
-      function digitBoxes(column, row) {
-        const isRoom = column.key === "roomNumber";
-        const boxWidth = isRoom ? 78 : 68;
-        const gap = isRoom ? 20 : 16;
-        const decimalExtra = isRoom ? 0 : 30;
-        const total = column.digits * boxWidth + (column.digits - 1) * gap + decimalExtra;
-        let x = column.x + (column.width - total) / 2;
-        const y = TEMPLATE.tableY + TEMPLATE.headerHeight + row * TEMPLATE.rowHeight + 17;
-        const boxes = [];
-        for (let index = 0; index < column.digits; index += 1) {
-          if (!isRoom && index === column.integerDigits) x += decimalExtra;
-          boxes.push({ x, y, width: boxWidth, height: 78 });
-          x += boxWidth + gap;
-        }
-        return boxes;
-      }
-
-      function drawDigitGuides(ctx, column, row) {
-        const boxes = digitBoxes(column, row);
-        ctx.save();
-        ctx.strokeStyle = "#bdc8d2";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([8, 7]);
-        boxes.forEach((box) => ctx.strokeRect(box.x, box.y, box.width, box.height));
-        ctx.restore();
-        if (column.key !== "roomNumber") {
-          const left = boxes[column.integerDigits - 1];
-          const right = boxes[column.integerDigits];
-          ctx.fillStyle = "#12263a";
-          ctx.beginPath();
-          ctx.arc((left.x + left.width + right.x) / 2, left.y + left.height - 7, 7, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      function openTemplatePrint() {
-        const printWindow = window.open("", "_blank");
-        if (!printWindow) {
-          showToast("浏览器阻止了打印窗口，请允许弹出窗口后重试");
-          return;
-        }
-        const image = createMeterTemplateCanvas().toDataURL("image/png");
-        printWindow.document.write(`<!doctype html><html><head><title>月度水电手写表</title><style>@page{size:A4;margin:0}html,body{margin:0;background:#fff}img{display:block;width:210mm;height:297mm}button{position:fixed;right:16px;top:16px;padding:10px 16px;border:0;border-radius:8px;background:#1769aa;color:white;font-weight:700}@media print{button{display:none}}</style></head><body><button onclick="print()">打印 A4</button><img src="${image}" onload="setTimeout(()=>print(),250)" alt="月度水电手写表"></body></html>`);
-        printWindow.document.close();
-      }
-
-      function downloadTemplate() {
-        const canvas = createMeterTemplateCanvas();
-        const anchor = document.createElement("a");
-        anchor.href = canvas.toDataURL("image/png");
-        anchor.download = `${state.settings.buildingName}-${importDraft.period}-水电手写表.png`.replace(/[\\/:*?"<>|]/g, "-");
-        anchor.click();
       }
 
       async function prepareFreeformImage(file) {
@@ -5840,66 +5528,7 @@
       }
 
       async function recognizeMeterSheet(file) {
-        if (importDraft.mode === "freeform") {
-          await prepareFreeformImage(file);
-          return;
-        }
-        if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type)) {
-          showToast("请选择 JPG、PNG 或 WebP 图片");
-          return;
-        }
-        importDraft = {
-          ...importDraft,
-          stage: "processing",
-          progress: 2,
-          progressText: "正在读取照片",
-          rows: [],
-          fileName: file.name,
-          result: null,
-        };
-        renderView();
-        try {
-          const image = await loadImageFile(file);
-          updateImportProgress(8, "正在检测四角定位标记");
-          const rectified = await rectifyTemplateImage(image);
-          updateImportProgress(16, "正在加载本地手写识别模型");
-          const session = await ensureOcrSession();
-          const rows = [];
-          const totalFields = 24 * 3;
-          let processed = 0;
-          for (let rowIndex = 0; rowIndex < 24; rowIndex += 1) {
-            const row = { confirmed: false, skipped: false };
-            for (const column of TEMPLATE.columns) {
-              const field = await recognizeTemplateField(rectified, column, rowIndex, session);
-              row[column.key] = field;
-              processed += 1;
-              if (processed % 3 === 0) {
-                updateImportProgress(
-                  16 + (processed / totalFields) * 80,
-                  `正在识别第 ${rowIndex + 1} 行，共 24 行`,
-                );
-                await nextFrame();
-              }
-            }
-            const allBlank = TEMPLATE.columns.every((column) => !row[column.key].value);
-            row.skipped = allBlank;
-            rows.push(row);
-          }
-          importDraft.rows = rows;
-          importDraft.stage = "review";
-          importDraft.progress = 100;
-          importDraft.progressText = "识别完成，请逐行核对";
-          renderView();
-          const firstInput = document.querySelector("[data-import-row]");
-          firstInput?.focus();
-          showToast("识别完成，请核对后导入");
-        } catch (error) {
-          console.error("手写表识别失败", error);
-          importDraft.stage = "idle";
-          importDraft.rows = [];
-          renderView();
-          showToast(error?.message || "识别失败，请确认照片清晰且四角标记完整");
-        }
+        await prepareFreeformImage(file);
       }
 
       function updateImportProgress(progress, text) {
@@ -5929,136 +5558,6 @@
           };
           image.src = url;
         });
-      }
-
-      function findCornerMarkers(canvas) {
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        const { width, height } = canvas;
-        const data = ctx.getImageData(0, 0, width, height).data;
-        const zones = [
-          [0.01, 0.3, 0.01, 0.22],
-          [0.7, 0.99, 0.01, 0.22],
-          [0.7, 0.99, 0.78, 0.99],
-          [0.01, 0.3, 0.78, 0.99],
-        ];
-        return zones.map(([x1, x2, y1, y2]) => {
-          const left = Math.round(width * x1);
-          const right = Math.round(width * x2);
-          const top = Math.round(height * y1);
-          const bottom = Math.round(height * y2);
-          const zoneWidth = right - left;
-          const zoneHeight = bottom - top;
-          const visited = new Uint8Array(zoneWidth * zoneHeight);
-          let best = null;
-          const isDark = (px, py) => {
-            const index = (py * width + px) * 4;
-            return (
-              data[index] * 0.299 +
-                data[index + 1] * 0.587 +
-                data[index + 2] * 0.114 <
-              95
-            );
-          };
-          for (let py = top; py < bottom; py += 1) {
-            for (let px = left; px < right; px += 1) {
-              const localIndex = (py - top) * zoneWidth + (px - left);
-              if (visited[localIndex] || !isDark(px, py)) continue;
-              const queueX = [px];
-              const queueY = [py];
-              visited[localIndex] = 1;
-              let cursor = 0;
-              let area = 0;
-              let minX = px;
-              let maxX = px;
-              let minY = py;
-              let maxY = py;
-              while (cursor < queueX.length) {
-                const currentX = queueX[cursor];
-                const currentY = queueY[cursor];
-                cursor += 1;
-                area += 1;
-                minX = Math.min(minX, currentX);
-                maxX = Math.max(maxX, currentX);
-                minY = Math.min(minY, currentY);
-                maxY = Math.max(maxY, currentY);
-                for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-                  const nextX = currentX + dx;
-                  const nextY = currentY + dy;
-                  if (nextX < left || nextX >= right || nextY < top || nextY >= bottom) continue;
-                  const nextIndex = (nextY - top) * zoneWidth + (nextX - left);
-                  if (visited[nextIndex]) continue;
-                  visited[nextIndex] = 1;
-                  if (isDark(nextX, nextY)) {
-                    queueX.push(nextX);
-                    queueY.push(nextY);
-                  }
-                }
-              }
-              const componentWidth = maxX - minX + 1;
-              const componentHeight = maxY - minY + 1;
-              const fill = area / (componentWidth * componentHeight);
-              const square = Math.min(componentWidth, componentHeight) / Math.max(componentWidth, componentHeight);
-              const score = area * fill * square;
-              if (
-                area > 70 &&
-                fill > 0.42 &&
-                square > 0.55 &&
-                (!best || score > best.score)
-              ) {
-                best = {
-                  score,
-                  x: (minX + maxX) / 2,
-                  y: (minY + maxY) / 2,
-                };
-              }
-            }
-          }
-          if (!best) throw new Error("未找到完整的四角定位标记，请重新拍摄并保留整张纸");
-          return best;
-        });
-      }
-
-      async function rectifyTemplateImage(image) {
-        const source = document.createElement("canvas");
-        const maxWidth = 1500;
-        const scale = Math.min(1, maxWidth / image.naturalWidth);
-        source.width = Math.round(image.naturalWidth * scale);
-        source.height = Math.round(image.naturalHeight * scale);
-        const sourceCtx = source.getContext("2d", { willReadFrequently: true });
-        sourceCtx.drawImage(image, 0, 0, source.width, source.height);
-        const markers = findCornerMarkers(source);
-        const outputScale = 0.5;
-        const output = document.createElement("canvas");
-        output.width = Math.round(TEMPLATE.width * outputScale);
-        output.height = Math.round(TEMPLATE.height * outputScale);
-        const destinations = TEMPLATE.markerCenters.map(([x, y]) => [x * outputScale, y * outputScale]);
-        const homography = solveHomography(destinations, markers.map(({ x, y }) => [x, y]));
-        const sourcePixels = sourceCtx.getImageData(0, 0, source.width, source.height);
-        const outputCtx = output.getContext("2d", { willReadFrequently: true });
-        const outputPixels = outputCtx.createImageData(output.width, output.height);
-        for (let y = 0; y < output.height; y += 1) {
-          for (let x = 0; x < output.width; x += 1) {
-            const denominator = homography[6] * x + homography[7] * y + 1;
-            const sx = Math.round((homography[0] * x + homography[1] * y + homography[2]) / denominator);
-            const sy = Math.round((homography[3] * x + homography[4] * y + homography[5]) / denominator);
-            const targetIndex = (y * output.width + x) * 4;
-            if (sx >= 0 && sx < source.width && sy >= 0 && sy < source.height) {
-              const sourceIndex = (sy * source.width + sx) * 4;
-              outputPixels.data[targetIndex] = sourcePixels.data[sourceIndex];
-              outputPixels.data[targetIndex + 1] = sourcePixels.data[sourceIndex + 1];
-              outputPixels.data[targetIndex + 2] = sourcePixels.data[sourceIndex + 2];
-              outputPixels.data[targetIndex + 3] = 255;
-            } else {
-              outputPixels.data[targetIndex] = 255;
-              outputPixels.data[targetIndex + 1] = 255;
-              outputPixels.data[targetIndex + 2] = 255;
-              outputPixels.data[targetIndex + 3] = 255;
-            }
-          }
-          if (y % 180 === 0) await nextFrame();
-        }
-        outputCtx.putImageData(outputPixels, 0, 0);
-        return output;
       }
 
       function solveHomography(from, to) {
@@ -6136,52 +5635,6 @@
           return session;
         })();
         return ocrSessionPromise;
-      }
-
-      async function recognizeTemplateField(canvas, column, rowIndex, session) {
-        const scale = canvas.width / TEMPLATE.width;
-        const boxes = digitBoxes(column, rowIndex);
-        const results = [];
-        for (const box of boxes) {
-          const digit = await recognizeDigitBox(canvas, box, scale, session);
-          results.push(digit);
-        }
-        const isRoom = column.key === "roomNumber";
-        const integer = results
-          .slice(0, column.integerDigits)
-          .map((result) => result.digit ?? "")
-          .join("");
-        const fractionResults = results.slice(column.integerDigits);
-        const hasFraction = fractionResults.some((result) => result.digit !== null);
-        const fraction = fractionResults.map((result) => result.digit ?? "0").join("");
-        const hasAny = results.some((result) => result.digit !== null);
-        const interiorGap = results.some((result, index) => {
-          if (result.digit !== null) return false;
-          return results.slice(index + 1).some((candidate) => candidate.digit !== null) &&
-            results.slice(0, index).some((candidate) => candidate.digit !== null);
-        });
-        let value = "";
-        if (hasAny) {
-          if (isRoom) {
-            value = integer;
-          } else {
-            const integerValue = integer || "0";
-            value = hasFraction ? `${integerValue}.${fraction}` : integerValue;
-          }
-        }
-        const usedConfidences = results
-          .filter((result) => result.digit !== null)
-          .map((result) => result.confidence);
-        const confidence = usedConfidences.length ? Math.min(...usedConfidences) : NaN;
-        const preview = cropFieldPreview(canvas, column, rowIndex, scale);
-        return {
-          value,
-          confidence,
-          image: preview,
-          needsReview:
-            Boolean(value) &&
-            (interiorGap || !Number.isFinite(confidence) || confidence < 0.72),
-        };
       }
 
       async function recognizeDigitBox(canvas, box, scale, session, highAccuracy = false) {
@@ -6358,28 +5811,6 @@
         return exponentials.map((value) => value / total);
       }
 
-      function cropFieldPreview(canvas, column, rowIndex, scale) {
-        const preview = document.createElement("canvas");
-        preview.width = 336;
-        preview.height = 102;
-        const y = (TEMPLATE.tableY + TEMPLATE.headerHeight + rowIndex * TEMPLATE.rowHeight + 6) * scale;
-        const sourceX = (column.x + 12) * scale;
-        const sourceWidth = (column.width - 24) * scale;
-        const sourceHeight = (TEMPLATE.rowHeight - 12) * scale;
-        preview.getContext("2d").drawImage(
-          canvas,
-          sourceX,
-          y,
-          sourceWidth,
-          sourceHeight,
-          0,
-          0,
-          preview.width,
-          preview.height,
-        );
-        return preview.toDataURL("image/jpeg", 0.72);
-      }
-
       async function commitMeterImport() {
         const analysis = analyzeImportRows();
         if (analysis.invalid || analysis.needsReview || !analysis.valid) {
@@ -6394,8 +5825,7 @@
           );
           if (!approved) return;
         }
-        const isFreeform = importDraft.mode === "freeform";
-        const batchId = `${isFreeform ? "FREE" : "IMPORT"}-${importDraft.period.replace("-", "")}-${String(Date.now()).slice(-6)}`;
+        const batchId = `FREE-${importDraft.period.replace("-", "")}-${String(Date.now()).slice(-6)}`;
         let created = 0;
         let updated = 0;
         for (let index = 0; index < importDraft.rows.length; index += 1) {
@@ -6405,41 +5835,25 @@
           const existing = state.meterRecords.find(
             (record) => record.roomId === result.room.id && record.period === importDraft.period,
           );
-          const record = isFreeform
-            ? {
-                id: existing?.id || makeId("meter"),
-                roomId: result.room.id,
-                period: importDraft.period,
-                inputMode: "freeform-reading",
-                prevWater: Number(result.prevWater.toFixed(2)),
-                currentWater: Number(result.currentWater.toFixed(2)),
-                prevElectric: Number(result.prevElectric.toFixed(2)),
-                currentElectric: Number(result.currentElectric.toFixed(2)),
-                waterUsage: Number(result.waterUsage.toFixed(2)),
-                electricUsage: Number(result.electricUsage.toFixed(2)),
-                waterRate: Number(state.settings.waterRate),
-                electricRate: Number(state.settings.electricRate),
-                waterCharge: result.waterCharge,
-                electricCharge: result.electricCharge,
-                importBatchId: batchId,
-                templateVersion: FREEFORM_TEMPLATE_VERSION,
-                updatedAt: new Date().toISOString(),
-              }
-            : {
-                id: existing?.id || makeId("meter"),
-                roomId: result.room.id,
-                period: importDraft.period,
-                inputMode: "monthly-usage",
-                waterUsage: Number(result.waterUsage.toFixed(2)),
-                electricUsage: Number(result.electricUsage.toFixed(2)),
-                waterRate: Number(state.settings.waterRate),
-                electricRate: Number(state.settings.electricRate),
-                waterCharge: result.waterCharge,
-                electricCharge: result.electricCharge,
-                importBatchId: batchId,
-                templateVersion: TEMPLATE_VERSION,
-                updatedAt: new Date().toISOString(),
-              };
+          const record = {
+            id: existing?.id || makeId("meter"),
+            roomId: result.room.id,
+            period: importDraft.period,
+            inputMode: "freeform-reading",
+            prevWater: Number(result.prevWater.toFixed(2)),
+            currentWater: Number(result.currentWater.toFixed(2)),
+            prevElectric: Number(result.prevElectric.toFixed(2)),
+            currentElectric: Number(result.currentElectric.toFixed(2)),
+            waterUsage: Number(result.waterUsage.toFixed(2)),
+            electricUsage: Number(result.electricUsage.toFixed(2)),
+            waterRate: Number(state.settings.waterRate),
+            electricRate: Number(state.settings.electricRate),
+            waterCharge: result.waterCharge,
+            electricCharge: result.electricCharge,
+            importBatchId: batchId,
+            templateVersion: FREEFORM_TEMPLATE_VERSION,
+            updatedAt: new Date().toISOString(),
+          };
           if (existing) {
             state.meterRecords = state.meterRecords.map((candidate) =>
               candidate.id === existing.id ? record : candidate,
@@ -8183,28 +7597,6 @@
             initializeBatchReceiptSelection(batchReceiptDraft.period);
           }
           renderView();
-        } else if (action === "set-import-mode") {
-          const mode = actionButton.dataset.mode === "freeform" ? "freeform" : "template";
-          if (mode !== importDraft.mode) {
-            importDraft = {
-              period: importDraft.period,
-              mode,
-              stage: "idle",
-              progress: 0,
-              progressText: "",
-              rows: [],
-              fileName: "",
-              result: null,
-              sourceImage: null,
-              alignment: null,
-              dragTarget: null,
-            };
-            renderView();
-          }
-        } else if (action === "download-meter-template") {
-          downloadTemplate();
-        } else if (action === "print-meter-template") {
-          openTemplatePrint();
         } else if (action === "reset-freeform-alignment") {
           if (importDraft.sourceImage) {
             importDraft.alignment = detectFreeformPaper(importDraft.sourceImage);
@@ -8237,7 +7629,6 @@
         } else if (action === "new-meter-import") {
           importDraft = {
             period: importDraft.period,
-            mode: importDraft.mode,
             stage: "idle",
             progress: 0,
             progressText: "",
@@ -8346,7 +7737,7 @@
             row[field].confidence = NaN;
             row.confirmed = false;
             if (field === "prevWater" || field === "prevElectric") row.previousAuto = false;
-            if (field === "roomNumber" && importDraft.mode === "freeform") {
+            if (field === "roomNumber") {
               applyPreviousReadingToRow(row);
             }
             renderImportReviewInPlace();
@@ -8367,13 +7758,11 @@
         if (event.target.id === "import-period") {
           importDraft.period = event.target.value || CURRENT_PERIOD;
           importDraft.result = null;
-          if (importDraft.mode === "freeform") {
-            importDraft.rows.forEach((row) => {
-              row.previousAuto = true;
-              applyPreviousReadingToRow(row);
-              row.confirmed = false;
-            });
-          }
+          importDraft.rows.forEach((row) => {
+            row.previousAuto = true;
+            applyPreviousReadingToRow(row);
+            row.confirmed = false;
+          });
           renderView();
         }
         if (event.target.id === "meter-import-file" && event.target.files?.[0]) {

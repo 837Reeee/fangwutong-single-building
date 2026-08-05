@@ -47,7 +47,6 @@ npm test
 ## 线上地址
 
 - [Cloudflare 主入口](https://fangwutong-single-building.156379627.workers.dev)
-- [腾讯云手机备用入口](https://fangwutong-mobile-d9dcat0700f8db-1462107725.tcloudbaseapp.com)
 
 两个网址的数据相互独立，且都只保存在当前浏览器中。把旧网址的数据迁移到备用网址时：
 

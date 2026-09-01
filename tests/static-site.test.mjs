@@ -45,6 +45,7 @@ test("provides touch-friendly mobile layouts for forms, dialogs, OCR and receipt
   assert.match(html, /\.receipt-preview-frame \.receipt-preview-image:not\(\[hidden\]\)\s*\{\s*width: 720px;/);
   assert.match(html, /\.receipt-preview-dialog img\s*\{\s*width: 900px;/);
   assert.match(html, /\.alignment-control input\[type="range"\]\s*\{\s*min-height: 44px;/);
+  assert.match(html, /\.alignment-layout-picker select\s*\{[\s\S]*?min-height: 44px;/);
 });
 
 test("keeps business pages compact without allowing receipt previews to widen the viewport", async () => {

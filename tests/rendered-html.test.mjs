@@ -78,7 +78,7 @@ test("contains default room, billing, and receipt rules", async () => {
   assert.match(html, /该房间存在水电或收据记录/);
   assert.match(html, /record\.inputMode === "monthly-usage"/);
   assert.match(html, /mnist-12\.onnx/);
-  assert.match(html, /纸张边缘、数据范围和三列位置/);
+  assert.match(html, /单组或左右双组三列/);
   assert.match(html, /房租、水、电费（专用）收据/);
   assert.match(html, /chineseUppercaseMoney/);
   assert.match(html, /sanitationAmount/);
@@ -164,8 +164,8 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.match(html, /filtered\.length < 2/);
   assert.match(html, /recognizeFreeformField/);
   assert.match(html, /alignment-canvas/);
-  assert.match(html, /data-alignment-control="columnOne"/);
-  assert.match(html, /第一根蓝线位置/);
+  assert.match(html, /alignmentRangeControl\("columnOne"/);
+  assert.match(html, /左组第一根蓝线|第一根蓝线/);
   assert.match(html, /setAlignmentGuideValue/);
   assert.match(html, /syncAlignmentControlRanges/);
   assert.match(html, /detectFreeformInkGuides/);
@@ -198,6 +198,35 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.doesNotMatch(html, /set-import-mode|download-meter-template|print-meter-template/);
   assert.doesNotMatch(html, /createMeterTemplateCanvas|findCornerMarkers|rectifyTemplateImage|recognizeTemplateField/);
   assert.doesNotMatch(html, /inputMode: "monthly-usage"/);
+});
+
+test("recognizes single and side-by-side three-column meter sheets", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /FREEFORM_LAYOUT_AUTO = "auto"/);
+  assert.match(html, /FREEFORM_LAYOUT_SINGLE = "single"/);
+  assert.match(html, /FREEFORM_LAYOUT_DOUBLE = "double"/);
+  assert.match(html, /id="import-layout-mode"/);
+  assert.match(html, /左右双组三列/);
+  assert.match(html, /detectFreeformGridGuides/);
+  assert.match(html, /detectRectifiedGridGuides/);
+  assert.match(html, /gridRowRatios/);
+  assert.match(html, /isHorizontalInk/);
+  assert.match(html, /doubleGapDeviation <= 0\.24/);
+  assert.match(html, /suppressFreeformTableLines/);
+  assert.match(html, /freeformGridCellBands/);
+  assert.match(html, /freeformColumnGroups/);
+  assert.match(html, /columnThree/);
+  assert.match(html, /columnFour/);
+  assert.match(html, /groupSplit/);
+  assert.match(html, /horizontalLines/);
+  assert.match(html, /rowBackgrounds/);
+  assert.match(html, /columnBackgrounds/);
+  assert.match(html, /inkMask/);
+  assert.match(html, /band\.gridIndex === 0/);
+  assert.match(html, /if \(!rawRoom\) continue/);
+  assert.match(html, /previewCanvas = canvas/);
 });
 
 test("previews final single and batch receipts before saving", async () => {

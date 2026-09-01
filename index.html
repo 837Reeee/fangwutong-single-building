@@ -1804,6 +1804,39 @@
         border-top: 1px solid var(--slate-200);
       }
 
+      .alignment-layout-picker {
+        display: grid;
+        gap: 7px;
+        margin-top: 15px;
+        padding: 12px;
+        border: 1px solid var(--slate-200);
+        border-radius: 12px;
+        background: var(--slate-50);
+      }
+
+      .alignment-layout-picker span {
+        color: var(--slate-700);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .alignment-layout-picker select {
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 10px;
+        border: 1px solid var(--slate-300);
+        border-radius: 10px;
+        background: white;
+        color: var(--slate-800);
+        font-size: 16px;
+      }
+
+      .alignment-layout-status {
+        margin: 0;
+        color: var(--slate-500);
+        font-size: 10px;
+      }
+
       .alignment-control {
         display: grid;
         gap: 6px;
@@ -2785,6 +2818,9 @@
       const MIRROR_HINT_KEY = "fangwutong.mobile-mirror-tip.v1";
       const CURRENT_PERIOD = toLocalDateInput(new Date()).slice(0, 7);
       const FREEFORM_TEMPLATE_VERSION = "freeform-3col-v1";
+      const FREEFORM_LAYOUT_AUTO = "auto";
+      const FREEFORM_LAYOUT_SINGLE = "single";
+      const FREEFORM_LAYOUT_DOUBLE = "double";
 
       const MENU = [
         {
@@ -2805,7 +2841,7 @@
           icon: "表",
           items: [
             { id: "meter-entry", label: "本月录入", description: "录入水电读数并自动计算费用" },
-            { id: "meter-import", label: "批量导入", description: "识别自由三列手写水电照片" },
+            { id: "meter-import", label: "批量导入", description: "识别单组或左右双组三列手写水电照片" },
             { id: "meter-records", label: "抄表记录", description: "查询和维护历史水电记录" },
             { id: "meter-settings", label: "费用设置", description: "设置水费与电费单价" },
           ],
@@ -2873,6 +2909,7 @@
         result: null,
         sourceImage: null,
         alignment: null,
+        layoutMode: FREEFORM_LAYOUT_AUTO,
         dragTarget: null,
       };
       let restoreDraft = createEmptyRestoreDraft();
@@ -3221,6 +3258,7 @@
           result: null,
           sourceImage: null,
           alignment: null,
+          layoutMode: FREEFORM_LAYOUT_AUTO,
           dragTarget: null,
         };
       }
@@ -3923,9 +3961,9 @@
             <div class="panel-header">
               <div>
                 <h2 class="panel-title">手写水电表批量导入</h2>
-                <p class="panel-subtitle">识别无表格线的三列手写照片，数据按累计表读数计费</p>
+                <p class="panel-subtitle">识别单组或左右双组三列手写照片，支持有表格线和无表格线版式</p>
               </div>
-              <span class="source-badge">自由三列 ${FREEFORM_TEMPLATE_VERSION}</span>
+              <span class="source-badge">单双组三列 ${FREEFORM_TEMPLATE_VERSION}</span>
             </div>
             <div class="panel-body">
               <div class="import-steps" aria-label="导入步骤">
@@ -4033,10 +4071,33 @@
       }
 
       function renderAlignmentWorkspace() {
+        const layout = importDraft.alignment.layout || FREEFORM_LAYOUT_SINGLE;
+        const detectedLabel = importDraft.alignment.detectedLayout === FREEFORM_LAYOUT_DOUBLE
+          ? "左右双组三列"
+          : "单组三列";
+        const layoutOptions = [
+          [FREEFORM_LAYOUT_AUTO, "自动识别"],
+          [FREEFORM_LAYOUT_SINGLE, "单组三列"],
+          [FREEFORM_LAYOUT_DOUBLE, "左右双组三列"],
+        ].map(([value, label]) =>
+          `<option value="${value}" ${importDraft.layoutMode === value ? "selected" : ""}>${label}</option>`
+        ).join("");
+        const columnControls = layout === FREEFORM_LAYOUT_DOUBLE
+          ? `
+            ${alignmentRangeControl("columnOne", "左组第一根蓝线")}
+            ${alignmentRangeControl("columnTwo", "左组第二根蓝线")}
+            ${alignmentRangeControl("groupSplit", "左右组分界线", "group")}
+            ${alignmentRangeControl("columnThree", "右组第一根蓝线")}
+            ${alignmentRangeControl("columnFour", "右组第二根蓝线")}
+          `
+          : `
+            ${alignmentRangeControl("columnOne", "第一根蓝线")}
+            ${alignmentRangeControl("columnTwo", "第二根蓝线")}
+          `;
         return `
           <div class="notice">
             <strong>请先校正识别区域：</strong>
-            <span>绿色四角框住纸张；橙色横线夹住数据行；蓝色竖线分别位于三列之间。</span>
+            <span>绿色四角框住纸张；橙色横线夹住数据行；蓝色竖线分别位于房号、水表和电表列之间。</span>
           </div>
           <div class="alignment-workspace">
             <div class="alignment-canvas-wrap">
@@ -4047,30 +4108,25 @@
               <ol>
                 <li>绿色圆点对准纸张四角。</li>
                 <li>橙色横线从第一行数据上方到最后一行下方，可拖动圆点或整条线。</li>
-                <li>蓝色竖线放在房号、水表、电表三列之间，可拖动圆点或整条线。</li>
+                <li>蓝色竖线放在房号、水表、电表列之间；双组照片还会显示紫色中线。</li>
               </ol>
               <div class="alignment-legend" aria-hidden="true">
                 <span><i style="--legend-color:#35b779"></i>纸张四角</span>
                 <span><i style="--legend-color:#ee9b32"></i>数据上下边界</span>
                 <span><i style="--legend-color:#3487c8"></i>列分隔线</span>
+                ${layout === FREEFORM_LAYOUT_DOUBLE ? '<span><i style="--legend-color:#8b5cf6"></i>左右组分界</span>' : ""}
               </div>
+              <label class="alignment-layout-picker">
+                <span>识别版式</span>
+                <select id="import-layout-mode" aria-label="批量导入识别版式">
+                  ${layoutOptions}
+                </select>
+                <p class="alignment-layout-status">自动检测结果：${detectedLabel}；当前使用：${layout === FREEFORM_LAYOUT_DOUBLE ? "左右双组三列" : "单组三列"}</p>
+              </label>
               <div class="alignment-controls">
-                <label class="alignment-control" data-guide-axis="row">
-                  <span class="alignment-control-label"><b>上方橙线</b><output data-alignment-output="dataTop">${Math.round(importDraft.alignment.dataTop * 100)}%</output></span>
-                  <input type="range" min="1" max="99" step="1" value="${Math.round(importDraft.alignment.dataTop * 100)}" data-alignment-control="dataTop" aria-label="上方橙线位置" />
-                </label>
-                <label class="alignment-control" data-guide-axis="row">
-                  <span class="alignment-control-label"><b>下方橙线</b><output data-alignment-output="dataBottom">${Math.round(importDraft.alignment.dataBottom * 100)}%</output></span>
-                  <input type="range" min="1" max="99" step="1" value="${Math.round(importDraft.alignment.dataBottom * 100)}" data-alignment-control="dataBottom" aria-label="下方橙线位置" />
-                </label>
-                <label class="alignment-control">
-                  <span class="alignment-control-label"><b>第一根蓝线</b><output data-alignment-output="columnOne">${Math.round(importDraft.alignment.columnOne * 100)}%</output></span>
-                  <input type="range" min="8" max="92" step="1" value="${Math.round(importDraft.alignment.columnOne * 100)}" data-alignment-control="columnOne" aria-label="第一根蓝线位置" />
-                </label>
-                <label class="alignment-control">
-                  <span class="alignment-control-label"><b>第二根蓝线</b><output data-alignment-output="columnTwo">${Math.round(importDraft.alignment.columnTwo * 100)}%</output></span>
-                  <input type="range" min="8" max="92" step="1" value="${Math.round(importDraft.alignment.columnTwo * 100)}" data-alignment-control="columnTwo" aria-label="第二根蓝线位置" />
-                </label>
+                ${alignmentRangeControl("dataTop", "上方橙线", "row")}
+                ${alignmentRangeControl("dataBottom", "下方橙线", "row")}
+                ${columnControls}
               </div>
               <div class="form-actions" style="display:grid;margin-top:16px">
                 <button class="button button-secondary" type="button" data-action="reset-freeform-alignment">自动重新定位</button>
@@ -4079,6 +4135,16 @@
             </aside>
           </div>
           <p class="privacy-line">照片仅保存在本次页面内存中，刷新或离开后即清除，不写入本地业务数据。</p>
+        `;
+      }
+
+      function alignmentRangeControl(type, label, axis = "column") {
+        const value = Math.round(Number(importDraft.alignment[type] || 0) * 100);
+        return `
+          <label class="alignment-control" data-guide-axis="${axis}">
+            <span class="alignment-control-label"><b>${label}</b><output data-alignment-output="${type}">${value}%</output></span>
+            <input type="range" min="1" max="99" step="1" value="${value}" data-alignment-control="${type}" aria-label="${label}位置" />
+          </label>
         `;
       }
 
@@ -4336,17 +4402,21 @@
             fileName: file.name,
             result: null,
             sourceImage: image,
-            alignment: detectFreeformPaper(image),
+            alignment: detectFreeformPaper(image, importDraft.layoutMode),
             dragTarget: null,
           };
           renderView();
-          showToast("请校正纸张边缘、数据范围和三列位置");
+          showToast(
+            importDraft.alignment.layout === FREEFORM_LAYOUT_DOUBLE
+              ? "已检测为左右双组三列，请核对纸张和列线"
+              : "已检测为单组三列，请核对纸张和列线",
+          );
         } catch (error) {
           showToast(error?.message || "照片读取失败，请重新选择");
         }
       }
 
-      function detectFreeformPaper(image) {
+      function detectFreeformPaper(image, layoutMode = FREEFORM_LAYOUT_AUTO) {
         const sample = document.createElement("canvas");
         sample.width = Math.min(220, image.naturalWidth);
         sample.height = Math.max(120, Math.round(sample.width * image.naturalHeight / image.naturalWidth));
@@ -4405,14 +4475,278 @@
             y: Math.max(0.005, Math.min(0.995, point.y)),
           }));
         }
-        const guides = detectFreeformInkGuides(sample, pixels, corners);
+        const gridGuides = detectFreeformGridGuides(sample, pixels, corners);
+        const inkGuides = detectFreeformInkGuides(sample, pixels, corners);
+        const detectedLayout = gridGuides?.layout || FREEFORM_LAYOUT_SINGLE;
+        const layout = layoutMode === FREEFORM_LAYOUT_AUTO ? detectedLayout : layoutMode;
+        const matchingGrid = gridGuides?.layout === layout ? gridGuides : null;
+        const baseGuides = matchingGrid || inkGuides || {};
+        const singleColumnOne = baseGuides.columnOne ?? 0.22;
+        const singleColumnTwo = baseGuides.columnTwo ?? 0.42;
+        const singleEnd = Math.min(
+          0.98,
+          singleColumnTwo + Math.max(0.18, (singleColumnTwo - singleColumnOne) * 1.5),
+        );
+        const doubleDefaults = {
+          leftEdge: 0.025,
+          columnOne: 0.16,
+          columnTwo: 0.32,
+          groupSplit: 0.5,
+          columnThree: 0.66,
+          columnFour: 0.82,
+          rightEdge: 0.975,
+        };
         return {
           corners,
-          dataTop: guides?.dataTop ?? 0.06,
-          dataBottom: guides?.dataBottom ?? 0.9,
-          columnOne: guides?.columnOne ?? 0.22,
-          columnTwo: guides?.columnTwo ?? 0.42,
+          layout,
+          detectedLayout,
+          gridDetected: Boolean(gridGuides),
+          gridRowRatios: matchingGrid?.gridRowRatios || [],
+          dataTop: baseGuides.dataTop ?? 0.06,
+          dataBottom: baseGuides.dataBottom ?? 0.9,
+          leftEdge: layout === FREEFORM_LAYOUT_DOUBLE
+            ? matchingGrid?.leftEdge ?? doubleDefaults.leftEdge
+            : matchingGrid?.leftEdge ?? 0,
+          columnOne: layout === FREEFORM_LAYOUT_DOUBLE
+            ? matchingGrid?.columnOne ?? doubleDefaults.columnOne
+            : singleColumnOne,
+          columnTwo: layout === FREEFORM_LAYOUT_DOUBLE
+            ? matchingGrid?.columnTwo ?? doubleDefaults.columnTwo
+            : singleColumnTwo,
+          groupSplit: matchingGrid?.groupSplit ?? doubleDefaults.groupSplit,
+          columnThree: matchingGrid?.columnThree ?? doubleDefaults.columnThree,
+          columnFour: matchingGrid?.columnFour ?? doubleDefaults.columnFour,
+          rightEdge: layout === FREEFORM_LAYOUT_DOUBLE
+            ? matchingGrid?.rightEdge ?? doubleDefaults.rightEdge
+            : matchingGrid?.rightEdge ?? singleEnd,
         };
+      }
+
+      function detectFreeformGridGuides(canvas, pixels, corners) {
+        const width = canvas.width;
+        const height = canvas.height;
+        const paperLeft = Math.max(
+          0,
+          Math.round(((corners[0].x + corners[3].x) / 2) * width),
+        );
+        const paperRight = Math.min(
+          width - 1,
+          Math.round(((corners[1].x + corners[2].x) / 2) * width),
+        );
+        const paperTop = Math.max(
+          0,
+          Math.round(((corners[0].y + corners[1].y) / 2) * height),
+        );
+        const paperBottom = Math.min(
+          height - 1,
+          Math.round(((corners[2].y + corners[3].y) / 2) * height),
+        );
+        const paperWidth = paperRight - paperLeft;
+        const paperHeight = paperBottom - paperTop;
+        if (paperWidth < 90 || paperHeight < 120) return null;
+        const scanTop = paperTop + Math.round(paperHeight * 0.04);
+        const scanBottom = paperBottom - Math.round(paperHeight * 0.035);
+        const scanLeft = paperLeft + Math.round(paperWidth * 0.012);
+        const scanRight = paperRight - Math.round(paperWidth * 0.012);
+        const grayAt = (x, y) => {
+          const offset = (y * width + x) * 4;
+          return (
+            pixels[offset] * 0.299 +
+              pixels[offset + 1] * 0.587 +
+              pixels[offset + 2] * 0.114
+          );
+        };
+        const isDark = (x, y) => grayAt(x, y) < 172;
+        const xProjection = new Uint16Array(width);
+        for (let y = scanTop; y <= scanBottom; y += 1) {
+          for (let x = scanLeft; x <= scanRight; x += 1) {
+            if (isDark(x, y)) xProjection[x] += 1;
+          }
+        }
+        const smoothed = new Uint32Array(width);
+        const radius = Math.max(2, Math.round(paperWidth * 0.018));
+        for (let x = scanLeft; x <= scanRight; x += 1) {
+          for (let offset = -radius; offset <= radius; offset += 1) {
+            smoothed[x] += xProjection[Math.max(scanLeft, Math.min(scanRight, x + offset))];
+          }
+        }
+        const activeThreshold = (scanBottom - scanTop) * 0.18;
+        const minimumGap = Math.max(4, Math.round(paperWidth * 0.045));
+        const rankedPeaks = [];
+        for (let x = scanLeft; x <= scanRight; x += 1) {
+          if (smoothed[x] >= activeThreshold) {
+            rankedPeaks.push({ center: x, strength: smoothed[x] });
+          }
+        }
+        rankedPeaks.sort((left, right) => right.strength - left.strength);
+        const candidateRuns = [];
+        for (const peak of rankedPeaks) {
+          if (candidateRuns.every((chosen) => Math.abs(chosen.center - peak.center) >= minimumGap)) {
+            candidateRuns.push(peak);
+            if (candidateRuns.length >= 14) break;
+          }
+        }
+        candidateRuns.sort((left, right) => left.center - right.center);
+        const chooseLines = (count) => {
+          if (candidateRuns.length < count) return null;
+          let best = null;
+          const search = (picked, from) => {
+            if (picked.length === count) {
+              const centers = picked.map((index) => candidateRuns[index].center);
+              const span = centers[count - 1] - centers[0];
+              if (span < paperWidth * (count === 7 ? 0.55 : 0.34)) return;
+              const gaps = centers.slice(1).map((center, index) => center - centers[index]);
+              const mean = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+              const deviation = gaps.reduce((sum, gap) => sum + Math.abs(gap - mean), 0) /
+                Math.max(1, gaps.length * mean);
+              const strength = picked.reduce((sum, index) => sum + candidateRuns[index].strength, 0);
+              const score = deviation * 5 - span / paperWidth - strength / Math.max(1, paperHeight * count * 30);
+              if (!best || score < best.score) best = { centers, score };
+              return;
+            }
+            for (let index = from; index <= candidateRuns.length - (count - picked.length); index += 1) {
+              search([...picked, index], index + 1);
+            }
+          };
+          search([], 0);
+          return best?.centers || null;
+        };
+        const candidateDoubleLines = chooseLines(7);
+        const doubleGapDeviation = candidateDoubleLines
+          ? (() => {
+              const gaps = candidateDoubleLines
+                .slice(1)
+                .map((center, index) => center - candidateDoubleLines[index]);
+              const mean = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+              return gaps.reduce((sum, gap) => sum + Math.abs(gap - mean), 0) /
+                Math.max(1, gaps.length * mean);
+            })()
+          : Infinity;
+        const doubleLines = doubleGapDeviation <= 0.24 ? candidateDoubleLines : null;
+        const singleLines = doubleLines ? null : chooseLines(4);
+        const lines = doubleLines || singleLines;
+        if (!lines) return null;
+        const toRatio = (position) => (position - paperLeft) / Math.max(1, paperWidth);
+        const horizontalScores = new Uint16Array(height);
+        const horizontalStart = lines[0];
+        const horizontalEnd = lines[lines.length - 1];
+        const horizontalMiddle = (horizontalStart + horizontalEnd) / 2;
+        const sampledWidth = Math.ceil((horizontalEnd - horizontalStart + 1) / 2);
+        for (let y = scanTop; y <= scanBottom; y += 1) {
+          let bestScore = 0;
+          for (let slopeStep = -4; slopeStep <= 4; slopeStep += 1) {
+            const slope = slopeStep * 0.0125;
+            let score = 0;
+            for (let x = horizontalStart; x <= horizontalEnd; x += 2) {
+              const targetY = Math.round(y + slope * (x - horizontalMiddle));
+              const isHorizontalInk = (row) => {
+                if (row - 4 < scanTop || row + 4 > scanBottom) return false;
+                const value = grayAt(x, row);
+                const background = (grayAt(x, row - 4) + grayAt(x, row + 4)) / 2;
+                return value < 218 && value + 10 < background;
+              };
+              if (
+                targetY > scanTop + 5 && targetY < scanBottom - 5 &&
+                (isHorizontalInk(targetY - 1) ||
+                  isHorizontalInk(targetY) ||
+                  isHorizontalInk(targetY + 1))
+              ) {
+                score += 1;
+              }
+            }
+            bestScore = Math.max(bestScore, score);
+          }
+          horizontalScores[y] = bestScore;
+        }
+        const horizontal = [];
+        const horizontalThreshold = sampledWidth * 0.52;
+        let start = -1;
+        for (let y = scanTop; y <= scanBottom + 1; y += 1) {
+          if (y <= scanBottom && horizontalScores[y] >= horizontalThreshold) {
+            if (start < 0) start = y;
+          } else if (start >= 0) {
+            const end = y - 1;
+            let best = start;
+            for (let candidate = start + 1; candidate <= end; candidate += 1) {
+              if (horizontalScores[candidate] > horizontalScores[best]) best = candidate;
+            }
+            horizontal.push({ center: best, strength: horizontalScores[best] });
+            start = -1;
+          }
+        }
+        if (horizontal.length >= 4) {
+          const gaps = horizontal
+            .slice(1)
+            .map((line, index) => line.center - horizontal[index].center)
+            .sort((left, right) => left - right);
+          const typicalGap = gaps[Math.floor(gaps.length / 2)] || 0;
+          const minimumGap = Math.max(5, typicalGap * 0.52);
+          for (let index = 1; index < horizontal.length;) {
+            if (horizontal[index].center - horizontal[index - 1].center < minimumGap) {
+              const removeIndex = horizontal[index].strength > horizontal[index - 1].strength
+                ? index - 1
+                : index;
+              horizontal.splice(removeIndex, 1);
+              index = Math.max(1, index - 1);
+            } else {
+              index += 1;
+            }
+          }
+        }
+        const dataTop = horizontal.length >= 3
+          ? Math.max(0.005, (horizontal[0].center - paperTop) / paperHeight)
+          : 0.055;
+        const dataBottom = horizontal.length >= 3
+          ? Math.min(0.995, (horizontal[horizontal.length - 1].center - paperTop) / paperHeight)
+          : 0.92;
+        if (doubleLines) {
+          return {
+            layout: FREEFORM_LAYOUT_DOUBLE,
+            leftEdge: toRatio(lines[0]),
+            columnOne: toRatio(lines[1]),
+            columnTwo: toRatio(lines[2]),
+            groupSplit: toRatio(lines[3]),
+            columnThree: toRatio(lines[4]),
+            columnFour: toRatio(lines[5]),
+            rightEdge: toRatio(lines[6]),
+            dataTop,
+             dataBottom,
+             gridRowRatios: horizontal.map((line) =>
+               Math.max(0, Math.min(1, (line.center - paperTop) / paperHeight)),
+             ),
+          };
+        }
+        return {
+          layout: FREEFORM_LAYOUT_SINGLE,
+          leftEdge: toRatio(lines[0]),
+          columnOne: toRatio(lines[1]),
+          columnTwo: toRatio(lines[2]),
+          rightEdge: toRatio(lines[3]),
+          dataTop,
+           dataBottom,
+           gridRowRatios: horizontal.map((line) =>
+             Math.max(0, Math.min(1, (line.center - paperTop) / paperHeight)),
+           ),
+        };
+      }
+
+      function detectRectifiedGridGuides(canvas) {
+        const sample = document.createElement("canvas");
+        sample.width = Math.min(360, canvas.width);
+        sample.height = Math.max(120, Math.round(sample.width * canvas.height / canvas.width));
+        const ctx = sample.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(canvas, 0, 0, sample.width, sample.height);
+        const pixels = ctx.getImageData(0, 0, sample.width, sample.height).data;
+        return detectFreeformGridGuides(
+          sample,
+          pixels,
+          [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 },
+          ],
+        );
       }
 
       function detectFreeformInkGuides(canvas, pixels, corners) {
@@ -4577,8 +4911,39 @@
           ...alignment.corners.map((point, index) => ({ type: "corner", index, point })),
           { type: "dataTop", point: alignmentPoint(0.5, alignment.dataTop) },
           { type: "dataBottom", point: alignmentPoint(0.5, alignment.dataBottom) },
-          { type: "columnOne", point: alignmentPoint(alignment.columnOne, (alignment.dataTop + alignment.dataBottom) / 2) },
-          { type: "columnTwo", point: alignmentPoint(alignment.columnTwo, (alignment.dataTop + alignment.dataBottom) / 2) },
+          ...alignmentColumnGuideTypes().map((type) => ({
+            type,
+            point: alignmentPoint(alignment[type], (alignment.dataTop + alignment.dataBottom) / 2),
+          })),
+        ];
+      }
+
+      function alignmentColumnGuideTypes() {
+        if (importDraft.alignment?.layout === FREEFORM_LAYOUT_DOUBLE) {
+          return ["columnOne", "columnTwo", "groupSplit", "columnThree", "columnFour"];
+        }
+        return ["columnOne", "columnTwo"];
+      }
+
+      function alignmentGuideSegments() {
+        const alignment = importDraft.alignment;
+        if (!alignment) return [];
+        return [
+          {
+            type: "dataTop",
+            from: alignmentPoint(0, alignment.dataTop),
+            to: alignmentPoint(1, alignment.dataTop),
+          },
+          {
+            type: "dataBottom",
+            from: alignmentPoint(0, alignment.dataBottom),
+            to: alignmentPoint(1, alignment.dataBottom),
+          },
+          ...alignmentColumnGuideTypes().map((type) => ({
+            type,
+            from: alignmentPoint(alignment[type], alignment.dataTop),
+            to: alignmentPoint(alignment[type], alignment.dataBottom),
+          })),
         ];
       }
 
@@ -4607,10 +4972,17 @@
         for (let index = 0; index < 4; index += 1) {
           drawGuide(corners[index], corners[(index + 1) % 4], "#35b779", 4);
         }
-        drawGuide(alignmentPoint(0, importDraft.alignment.dataTop), alignmentPoint(1, importDraft.alignment.dataTop), "#ee9b32");
-        drawGuide(alignmentPoint(0, importDraft.alignment.dataBottom), alignmentPoint(1, importDraft.alignment.dataBottom), "#ee9b32");
-        drawGuide(alignmentPoint(importDraft.alignment.columnOne, importDraft.alignment.dataTop), alignmentPoint(importDraft.alignment.columnOne, importDraft.alignment.dataBottom), "#3487c8");
-        drawGuide(alignmentPoint(importDraft.alignment.columnTwo, importDraft.alignment.dataTop), alignmentPoint(importDraft.alignment.columnTwo, importDraft.alignment.dataBottom), "#3487c8");
+        alignmentGuideSegments().forEach((guide) => {
+          drawGuide(
+            guide.from,
+            guide.to,
+            guide.type.startsWith("data")
+              ? "#ee9b32"
+              : guide.type === "groupSplit"
+                ? "#8b5cf6"
+                : "#3487c8",
+          );
+        });
         alignmentHandles().forEach((handle) => {
           const point = toCanvas(handle.point);
           ctx.beginPath();
@@ -4619,7 +4991,9 @@
             ? "#35b779"
             : handle.type.startsWith("data")
               ? "#ee9b32"
-              : "#3487c8";
+              : handle.type === "groupSplit"
+                ? "#8b5cf6"
+                : "#3487c8";
           ctx.fill();
           ctx.strokeStyle = "white";
           ctx.lineWidth = 3;
@@ -4637,9 +5011,33 @@
         } else if (type === "dataBottom") {
           alignment.dataBottom = Math.max(alignment.dataTop + 0.08, Math.min(0.99, value));
         } else if (type === "columnOne") {
-          alignment.columnOne = Math.min(alignment.columnTwo - 0.08, Math.max(0.08, value));
+          alignment.columnOne = Math.min(
+            alignment.columnTwo - 0.035,
+            Math.max((alignment.leftEdge || 0) + 0.035, value),
+          );
         } else if (type === "columnTwo") {
-          alignment.columnTwo = Math.max(alignment.columnOne + 0.08, Math.min(0.92, value));
+          const maximum = alignment.layout === FREEFORM_LAYOUT_DOUBLE
+            ? alignment.groupSplit - 0.035
+            : (alignment.rightEdge || 0.96) - 0.035;
+          alignment.columnTwo = Math.max(
+            alignment.columnOne + 0.035,
+            Math.min(maximum, value),
+          );
+        } else if (type === "groupSplit" && alignment.layout === FREEFORM_LAYOUT_DOUBLE) {
+          alignment.groupSplit = Math.max(
+            alignment.columnTwo + 0.035,
+            Math.min(alignment.columnThree - 0.035, value),
+          );
+        } else if (type === "columnThree" && alignment.layout === FREEFORM_LAYOUT_DOUBLE) {
+          alignment.columnThree = Math.max(
+            alignment.groupSplit + 0.035,
+            Math.min(alignment.columnFour - 0.035, value),
+          );
+        } else if (type === "columnFour" && alignment.layout === FREEFORM_LAYOUT_DOUBLE) {
+          alignment.columnFour = Math.max(
+            alignment.columnThree + 0.035,
+            Math.min((alignment.rightEdge || 0.98) - 0.035, value),
+          );
         }
       }
 
@@ -4649,8 +5047,23 @@
         const limits = {
           dataTop: [0.01, alignment.dataBottom - 0.08],
           dataBottom: [alignment.dataTop + 0.08, 0.99],
-          columnOne: [0.08, alignment.columnTwo - 0.08],
-          columnTwo: [alignment.columnOne + 0.08, 0.92],
+          columnOne: [(alignment.leftEdge || 0) + 0.035, alignment.columnTwo - 0.035],
+          columnTwo: [
+            alignment.columnOne + 0.035,
+            (alignment.layout === FREEFORM_LAYOUT_DOUBLE
+              ? alignment.groupSplit
+              : alignment.rightEdge || 0.96) - 0.035,
+          ],
+          ...(alignment.layout === FREEFORM_LAYOUT_DOUBLE
+            ? {
+                groupSplit: [alignment.columnTwo + 0.035, alignment.columnThree - 0.035],
+                columnThree: [alignment.groupSplit + 0.035, alignment.columnFour - 0.035],
+                columnFour: [
+                  alignment.columnThree + 0.035,
+                  (alignment.rightEdge || 0.98) - 0.035,
+                ],
+              }
+            : {}),
         };
         document.querySelectorAll("[data-alignment-control]").forEach((control) => {
           const type = control.dataset.alignmentControl;
@@ -4679,29 +5092,7 @@
           }
         }
         if (closest) return closest;
-        const alignment = importDraft.alignment;
-        const guides = [
-          {
-            type: "dataTop",
-            from: alignmentPoint(0, alignment.dataTop),
-            to: alignmentPoint(1, alignment.dataTop),
-          },
-          {
-            type: "dataBottom",
-            from: alignmentPoint(0, alignment.dataBottom),
-            to: alignmentPoint(1, alignment.dataBottom),
-          },
-          {
-            type: "columnOne",
-            from: alignmentPoint(alignment.columnOne, alignment.dataTop),
-            to: alignmentPoint(alignment.columnOne, alignment.dataBottom),
-          },
-          {
-            type: "columnTwo",
-            from: alignmentPoint(alignment.columnTwo, alignment.dataTop),
-            to: alignmentPoint(alignment.columnTwo, alignment.dataBottom),
-          },
-        ];
+        const guides = alignmentGuideSegments();
         for (const guide of guides) {
           const distance = distanceToAlignmentSegment(
             { x: x * rect.width, y: y * rect.height },
@@ -4744,58 +5135,105 @@
             importDraft.sourceImage,
             importDraft.alignment.corners,
           );
-          updateImportProgress(22, "正在检测三列手写数据行");
+          updateImportProgress(18, "正在检测并清理表格线");
           const alignment = importDraft.alignment;
-          const electricEnd = freeformElectricEndRatio(alignment);
-          const bands = detectFreeformRows(rectified, alignment, 0, alignment.columnOne);
-          if (!bands.length) {
-            throw new Error("未检测到数据行，请返回后调整橙色数据范围");
+          if (importDraft.layoutMode === FREEFORM_LAYOUT_AUTO) {
+            const rectifiedGuides = detectRectifiedGridGuides(rectified);
+            if (rectifiedGuides) {
+              Object.assign(alignment, rectifiedGuides, {
+                layout: rectifiedGuides.layout,
+                detectedLayout: rectifiedGuides.layout,
+                gridDetected: true,
+              });
+            }
           }
-          const waterBands = matchFreeformColumnBands(
-            bands,
-            detectFreeformRows(
-              rectified,
-              alignment,
-              alignment.columnOne,
-              alignment.columnTwo,
-            ),
+          const cleanedResult = suppressFreeformTableLines(rectified, alignment);
+          const cleaned = cleanedResult.canvas;
+          const gridBands = freeformGridCellBands(
+            cleanedResult.horizontalLines,
+            alignment,
+            cleaned.height,
           );
-          const electricBands = matchFreeformColumnBands(
-            bands,
-            detectFreeformRows(rectified, alignment, alignment.columnTwo, electricEnd),
+          const groups = freeformColumnGroups(alignment);
+          updateImportProgress(
+            24,
+            alignment.layout === FREEFORM_LAYOUT_DOUBLE
+              ? "正在分别检测左右两组三列数据"
+              : "正在检测三列手写数据行",
           );
-          updateImportProgress(30, "正在加载本地手写数字模型");
           const session = await ensureOcrSession();
           const rows = [];
-          for (let index = 0; index < bands.length; index += 1) {
-            const band = bands[index];
-            const roomNumber = await recognizeFreeformField(
-              rectified,
-              band,
-              0,
-              alignment.columnOne,
-              session,
-              "room",
-            );
-            rows.push({
-              confirmed: false,
-              skipped: false,
-              previousAuto: false,
-              roomNumber,
-              currentWater: { value: "", confidence: NaN, image: "", needsReview: true },
-              currentElectric: { value: "", confidence: NaN, image: "", needsReview: true },
-              prevWater: { value: "", confidence: NaN, image: "", needsReview: false },
-              prevElectric: { value: "", confidence: NaN, image: "", needsReview: false },
-            });
-            updateImportProgress(
-              30 + ((index + 1) / bands.length) * 20,
-              `正在识别第 ${index + 1} 个房号，共 ${bands.length} 个`,
-            );
-            await nextFrame();
+          const rowSources = [];
+          for (const group of groups) {
+            const roomBands = gridBands.length
+              ? gridBands
+              : detectFreeformRows(cleaned, alignment, group.start, group.roomEnd);
+            const waterBands = gridBands.length
+              ? roomBands
+              : matchFreeformColumnBands(
+                  roomBands,
+                  detectFreeformRows(
+                    cleaned,
+                    alignment,
+                    group.roomEnd,
+                    group.waterEnd,
+                  ),
+                );
+            const electricBands = gridBands.length
+              ? roomBands
+              : matchFreeformColumnBands(
+                  roomBands,
+                  detectFreeformRows(cleaned, alignment, group.waterEnd, group.end),
+                );
+            for (let index = 0; index < roomBands.length; index += 1) {
+              const band = roomBands[index];
+              const roomNumber = await recognizeFreeformField(
+                cleaned,
+                band,
+                group.start,
+                group.roomEnd,
+                session,
+                "room",
+                null,
+                rectified,
+              );
+              const rawRoom = String(roomNumber.rawValue || "").replace(/\D/g, "");
+              if (!rawRoom) continue;
+              const rawKnown = state.rooms.some(
+                (room) => String(room.number) === rawRoom,
+              );
+              if (gridBands.length && band.gridIndex === 0 && !rawKnown) {
+                continue;
+              }
+              rows.push({
+                confirmed: false,
+                skipped: false,
+                previousAuto: false,
+                roomNumber,
+                currentWater: { value: "", confidence: NaN, image: "", needsReview: true },
+                currentElectric: { value: "", confidence: NaN, image: "", needsReview: true },
+                prevWater: { value: "", confidence: NaN, image: "", needsReview: false },
+                prevElectric: { value: "", confidence: NaN, image: "", needsReview: false },
+              });
+              rowSources.push({
+                group,
+                waterBand: waterBands[index] || band,
+                electricBand: electricBands[index] || band,
+              });
+              updateImportProgress(
+                26 + Math.min(22, rows.length * 1.1),
+                `正在识别房号，已找到 ${rows.length} 行`,
+              );
+              await nextFrame();
+            }
+          }
+          if (!rows.length) {
+            throw new Error("未检测到数据行，请返回后调整橙色数据范围");
           }
           applyRoomSequenceCorrection(rows);
           for (let index = 0; index < rows.length; index += 1) {
             const row = rows[index];
+            const source = rowSources[index];
             const matchedRoom = state.rooms.find(
               (room) => String(room.number) === row.roomNumber.value,
             );
@@ -4803,26 +5241,28 @@
               ? latestReading(matchedRoom.id, importDraft.period)
               : null;
             row.currentWater = await recognizeFreeformField(
-              rectified,
-              waterBands[index],
-              alignment.columnOne,
-              alignment.columnTwo,
+              cleaned,
+              source.waterBand,
+              source.group.roomEnd,
+              source.group.waterEnd,
               session,
               "reading",
               previous?.currentWater,
+              rectified,
             );
             row.currentElectric = await recognizeFreeformField(
-              rectified,
-              electricBands[index],
-              alignment.columnTwo,
-              electricEnd,
+              cleaned,
+              source.electricBand,
+              source.group.waterEnd,
+              source.group.end,
               session,
               "reading",
               previous?.currentElectric,
+              rectified,
             );
             applyPreviousReadingToRow(row);
             updateImportProgress(
-              50 + ((index + 1) / rows.length) * 46,
+              48 + ((index + 1) / rows.length) * 48,
               `正在识别第 ${index + 1} 行水电读数，共 ${rows.length} 行`,
             );
             await nextFrame();
@@ -4963,6 +5403,152 @@
             pixels.data[offset + 2] * 0.114;
         }
         return { x: safeX, y: safeY, width: safeWidth, height: safeHeight, gray };
+      }
+
+      function freeformColumnGroups(alignment) {
+        if (alignment.layout === FREEFORM_LAYOUT_DOUBLE) {
+          return [
+            {
+              id: "left",
+              start: alignment.leftEdge || 0,
+              roomEnd: alignment.columnOne,
+              waterEnd: alignment.columnTwo,
+              end: alignment.groupSplit,
+            },
+            {
+              id: "right",
+              start: alignment.groupSplit,
+              roomEnd: alignment.columnThree,
+              waterEnd: alignment.columnFour,
+              end: alignment.rightEdge || 0.98,
+            },
+          ];
+        }
+        return [
+          {
+            id: "single",
+            start: alignment.leftEdge || 0,
+            roomEnd: alignment.columnOne,
+            waterEnd: alignment.columnTwo,
+            end: alignment.rightEdge || freeformElectricEndRatio(alignment),
+          },
+        ];
+      }
+
+      function collectProjectionRuns(projection, start, end, threshold) {
+        const runs = [];
+        let runStart = -1;
+        for (let index = start; index <= end + 1; index += 1) {
+          if (index <= end && projection[index] >= threshold) {
+            if (runStart < 0) runStart = index;
+          } else if (runStart >= 0) {
+            const runEnd = index - 1;
+            let center = runStart;
+            for (let candidate = runStart + 1; candidate <= runEnd; candidate += 1) {
+              if (projection[candidate] > projection[center]) center = candidate;
+            }
+            runs.push({ start: runStart, end: runEnd, center });
+            runStart = -1;
+          }
+        }
+        return runs;
+      }
+
+      function suppressFreeformTableLines(canvas, alignment) {
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const clean = document.createElement("canvas");
+        clean.width = canvas.width;
+        clean.height = canvas.height;
+        const cleanCtx = clean.getContext("2d", { willReadFrequently: true });
+        cleanCtx.drawImage(canvas, 0, 0);
+        const cleanPixels = cleanCtx.getImageData(0, 0, clean.width, clean.height);
+        const top = Math.max(0, Math.round(canvas.height * alignment.dataTop));
+        const bottom = Math.min(canvas.height - 1, Math.round(canvas.height * alignment.dataBottom));
+        const groups = freeformColumnGroups(alignment);
+        const left = Math.max(0, Math.round(canvas.width * Math.min(...groups.map((group) => group.start))));
+        const right = Math.min(
+          canvas.width - 1,
+          Math.round(canvas.width * Math.max(...groups.map((group) => group.end))),
+        );
+        const threshold = 184;
+        const isDark = (x, y) => {
+          const offset = (y * canvas.width + x) * 4;
+          return pixels.data[offset] < threshold;
+        };
+        const xProjection = new Uint32Array(canvas.width);
+        const yProjection = new Uint32Array(canvas.height);
+        for (let y = top; y <= bottom; y += 1) {
+          for (let x = left; x <= right; x += 1) {
+            if (!isDark(x, y)) continue;
+            xProjection[x] += 1;
+            yProjection[y] += 1;
+          }
+        }
+        const verticalRuns = collectProjectionRuns(
+          xProjection,
+          left,
+          right,
+          Math.max(20, (bottom - top) * 0.42),
+        );
+        const horizontalRuns = collectProjectionRuns(
+          yProjection,
+          top,
+          bottom,
+          Math.max(30, (right - left) * 0.48),
+        );
+        const erasePixel = (x, y) => {
+          if (x < 0 || x >= clean.width || y < 0 || y >= clean.height) return;
+          const offset = (y * clean.width + x) * 4;
+          cleanPixels.data[offset] = 255;
+          cleanPixels.data[offset + 1] = 255;
+          cleanPixels.data[offset + 2] = 255;
+          cleanPixels.data[offset + 3] = 255;
+        };
+        verticalRuns.forEach((run) => {
+          const padding = Math.max(2, Math.ceil((run.end - run.start + 1) / 2));
+          for (let x = run.start - padding; x <= run.end + padding; x += 1) {
+            for (let y = top; y <= bottom; y += 1) erasePixel(x, y);
+          }
+        });
+        horizontalRuns.forEach((run) => {
+          const padding = Math.max(2, Math.ceil((run.end - run.start + 1) / 2));
+          for (let y = run.start - padding; y <= run.end + padding; y += 1) {
+            for (let x = left; x <= right; x += 1) erasePixel(x, y);
+          }
+        });
+        cleanCtx.putImageData(cleanPixels, 0, 0);
+        const expectedHorizontalLines = (alignment.gridRowRatios || []).map(
+          (ratio) => ratio * canvas.height,
+        );
+        const mergedHorizontalLines = [
+          ...horizontalRuns.map((run) => run.center),
+          ...expectedHorizontalLines,
+        ]
+          .sort((left, right) => left - right)
+          .filter((line, index, values) => !index || line - values[index - 1] > 4);
+        return {
+          canvas: clean,
+          horizontalLines: mergedHorizontalLines,
+          verticalLines: verticalRuns.map((run) => run.center),
+        };
+      }
+
+      function freeformGridCellBands(lineCenters, alignment, canvasHeight) {
+        const top = canvasHeight * alignment.dataTop;
+        const bottom = canvasHeight * alignment.dataBottom;
+        const lines = [...lineCenters]
+          .filter((line) => line >= top - 8 && line <= bottom + 8)
+          .sort((left, right) => left - right)
+          .filter((line, index, values) => !index || line - values[index - 1] > 4);
+        if (lines.length < 3) return [];
+        return lines.slice(0, -1)
+          .map((line, index) => {
+            const next = lines[index + 1];
+            const inset = Math.max(5, (next - line) * 0.16);
+            return { top: line + inset, bottom: next - inset, gridIndex: index };
+          })
+          .filter((band) => band.bottom - band.top >= 10);
       }
 
       function freeformElectricEndRatio(alignment) {
@@ -5107,18 +5693,49 @@
         session,
         kind,
         minimumValue = null,
+        previewCanvas = canvas,
       ) {
-        const leftMargin = canvas.width * (kind === "room" ? 0.032 : 0.012);
-        const rightMargin = canvas.width * 0.012;
+        const cellWidth = canvas.width * Math.max(0.02, endRatio - startRatio);
+        const leftMargin = cellWidth * (kind === "room" ? 0.075 : 0.045);
+        const rightMargin = cellWidth * 0.045;
         const x = canvas.width * startRatio + leftMargin;
         const width = canvas.width * (endRatio - startRatio) - leftMargin - rightMargin;
         const region = grayRegion(canvas, x, band.top, width, band.bottom - band.top);
-        const threshold = otsuThreshold(region.gray);
+        const rowBackgrounds = new Float32Array(region.height);
+        const columnBackgrounds = new Float32Array(region.width);
+        for (let py = 0; py < region.height; py += 1) {
+          const values = [];
+          for (let px = 0; px < region.width; px += 3) {
+            values.push(region.gray[py * region.width + px]);
+          }
+          values.sort((left, right) => left - right);
+          rowBackgrounds[py] = values[Math.floor(values.length * 0.78)] || 255;
+        }
+        for (let px = 0; px < region.width; px += 1) {
+          const values = [];
+          for (let py = 0; py < region.height; py += 3) {
+            values.push(region.gray[py * region.width + px]);
+          }
+          values.sort((left, right) => left - right);
+          columnBackgrounds[px] = values[Math.floor(values.length * 0.78)] || 255;
+        }
+        const normalizedGray = new Float32Array(region.gray.length);
+        for (let py = 0; py < region.height; py += 1) {
+          for (let px = 0; px < region.width; px += 1) {
+            const index = py * region.width + px;
+            const background = (rowBackgrounds[py] + columnBackgrounds[px]) / 2;
+            normalizedGray[index] = Math.max(
+              0,
+              Math.min(255, region.gray[index] + (238 - background)),
+            );
+          }
+        }
+        const threshold = otsuThreshold(normalizedGray);
         const columnThresholds = new Float32Array(region.width);
         for (let px = 0; px < region.width; px += 1) {
           const histogram = new Uint16Array(256);
           for (let py = 0; py < region.height; py += 1) {
-            histogram[Math.max(0, Math.min(255, Math.round(region.gray[py * region.width + px])))] += 1;
+            histogram[Math.max(0, Math.min(255, Math.round(normalizedGray[py * region.width + px])))] += 1;
           }
           const backgroundTarget = region.height * 0.7;
           let counted = 0;
@@ -5132,8 +5749,37 @@
           }
           columnThresholds[px] = Math.max(62, Math.min(threshold - 3, background - 25));
         }
-        const isInk = (px, py) =>
-          region.gray[py * region.width + px] < columnThresholds[px];
+        const inkMask = new Uint8Array(region.width * region.height);
+        for (let py = 0; py < region.height; py += 1) {
+          for (let px = 0; px < region.width; px += 1) {
+            if (normalizedGray[py * region.width + px] < columnThresholds[px]) {
+              inkMask[py * region.width + px] = 1;
+            }
+          }
+        }
+        for (let px = 0; px < region.width; px += 1) {
+          let count = 0;
+          for (let py = 0; py < region.height; py += 1) {
+            count += inkMask[py * region.width + px];
+          }
+          if (count >= region.height * 0.76) {
+            for (let py = 0; py < region.height; py += 1) {
+              inkMask[py * region.width + px] = 0;
+            }
+          }
+        }
+        for (let py = 0; py < region.height; py += 1) {
+          let count = 0;
+          for (let px = 0; px < region.width; px += 1) {
+            count += inkMask[py * region.width + px];
+          }
+          if (count >= region.width * 0.74) {
+            for (let px = 0; px < region.width; px += 1) {
+              inkMask[py * region.width + px] = 0;
+            }
+          }
+        }
+        const isInk = (px, py) => Boolean(inkMask[py * region.width + px]);
         const projection = new Uint32Array(region.width);
         const bounds = [];
         let minY = region.height;
@@ -5168,7 +5814,7 @@
         fieldCanvas.width = 336;
         fieldCanvas.height = 102;
         fieldCanvas.getContext("2d").drawImage(
-          canvas,
+          previewCanvas,
           region.x,
           region.y,
           region.width,
@@ -5259,17 +5905,19 @@
           const digitCtx = digitCanvas.getContext("2d");
           digitCtx.fillStyle = "white";
           digitCtx.fillRect(0, 0, digitCanvas.width, digitCanvas.height);
-          digitCtx.drawImage(
-            canvas,
-            region.x + group.left,
-            region.y + groupMinY,
-            groupWidth,
-            groupHeight,
-            12,
-            12,
-            groupWidth,
-            groupHeight,
-          );
+          const digitPixels = digitCtx.createImageData(groupWidth, groupHeight);
+          for (let py = 0; py < groupHeight; py += 1) {
+            for (let px = 0; px < groupWidth; px += 1) {
+              const sourceIndex = (groupMinY + py) * region.width + group.left + px;
+              const targetIndex = (py * groupWidth + px) * 4;
+              const value = inkMask[sourceIndex] ? 0 : 255;
+              digitPixels.data[targetIndex] = value;
+              digitPixels.data[targetIndex + 1] = value;
+              digitPixels.data[targetIndex + 2] = value;
+              digitPixels.data[targetIndex + 3] = 255;
+            }
+          }
+          digitCtx.putImageData(digitPixels, 12, 12);
           const result = await recognizeDigitBox(
             digitCanvas,
             { x: 0, y: 0, width: digitCanvas.width, height: digitCanvas.height },
@@ -7481,7 +8129,7 @@
             hoveredCanvas.style.cursor = handle
               ? handle.type.startsWith("data")
                 ? "row-resize"
-                : handle.type.startsWith("column")
+                : handle.type.startsWith("column") || handle.type === "groupSplit"
                   ? "col-resize"
                   : "grab"
               : "crosshair";
@@ -7496,25 +8144,11 @@
         } else {
           const { u, v } = alignmentUvAtPoint(x, y);
           if (target.type === "dataTop") {
-            importDraft.alignment.dataTop = Math.min(
-              importDraft.alignment.dataBottom - 0.08,
-              Math.max(0.01, v),
-            );
+            setAlignmentGuideValue(target.type, v);
           } else if (target.type === "dataBottom") {
-            importDraft.alignment.dataBottom = Math.max(
-              importDraft.alignment.dataTop + 0.08,
-              Math.min(0.99, v),
-            );
-          } else if (target.type === "columnOne") {
-            importDraft.alignment.columnOne = Math.min(
-              importDraft.alignment.columnTwo - 0.08,
-              Math.max(0.08, u),
-            );
-          } else if (target.type === "columnTwo") {
-            importDraft.alignment.columnTwo = Math.max(
-              importDraft.alignment.columnOne + 0.08,
-              Math.min(0.92, u),
-            );
+            setAlignmentGuideValue(target.type, v);
+          } else {
+            setAlignmentGuideValue(target.type, u);
           }
         }
         drawAlignmentEditor();
@@ -7599,9 +8233,11 @@
           renderView();
         } else if (action === "reset-freeform-alignment") {
           if (importDraft.sourceImage) {
-            importDraft.alignment = detectFreeformPaper(importDraft.sourceImage);
-            drawAlignmentEditor();
-            syncAlignmentControlRanges();
+            importDraft.alignment = detectFreeformPaper(
+              importDraft.sourceImage,
+              importDraft.layoutMode,
+            );
+            renderView();
           }
         } else if (action === "recognize-freeform") {
           await recognizeFreeformSheet();
@@ -7637,6 +8273,7 @@
             result: null,
             sourceImage: null,
             alignment: null,
+            layoutMode: FREEFORM_LAYOUT_AUTO,
             dragTarget: null,
           };
           renderView();
@@ -7755,6 +8392,27 @@
 
       document.addEventListener("change", (event) => {
         if (event.target.id === "room-status") syncTenantFields();
+        if (event.target.id === "import-layout-mode" && importDraft.sourceImage) {
+          importDraft.layoutMode = [
+            FREEFORM_LAYOUT_AUTO,
+            FREEFORM_LAYOUT_SINGLE,
+            FREEFORM_LAYOUT_DOUBLE,
+          ].includes(event.target.value)
+            ? event.target.value
+            : FREEFORM_LAYOUT_AUTO;
+          importDraft.alignment = detectFreeformPaper(
+            importDraft.sourceImage,
+            importDraft.layoutMode,
+          );
+          importDraft.rows = [];
+          importDraft.stage = "align";
+          renderView();
+          showToast(
+            importDraft.alignment.layout === FREEFORM_LAYOUT_DOUBLE
+              ? "已切换为左右双组三列"
+              : "已切换为单组三列",
+          );
+        }
         if (event.target.id === "import-period") {
           importDraft.period = event.target.value || CURRENT_PERIOD;
           importDraft.result = null;

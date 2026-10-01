@@ -4693,6 +4693,7 @@
             }
           }
         }
+        if (horizontal.length < 3) return null;
         const dataTop = horizontal.length >= 3
           ? Math.max(0.005, (horizontal[0].center - paperTop) / paperHeight)
           : 0.055;
@@ -4772,18 +4773,52 @@
         const paperHeight = paperBottom - paperTop;
         if (paperWidth < 80 || paperHeight < 100) return null;
         const scanLeft = paperLeft + Math.round(paperWidth * 0.025);
-        const scanRight = paperRight - Math.round(paperWidth * 0.04);
+        const scanRight = Math.min(
+          paperRight - Math.round(paperWidth * 0.04),
+          paperLeft + Math.round(paperWidth * 0.8),
+        );
         const scanTop = paperTop + Math.round(paperHeight * 0.018);
         const scanBottom = paperBottom - Math.round(paperHeight * 0.04);
         const xProjection = new Uint16Array(width);
-        const isDark = (x, y) => {
+        const grayAt = (x, y) => {
           const offset = (y * width + x) * 4;
           return (
             pixels[offset] * 0.299 +
               pixels[offset + 1] * 0.587 +
-              pixels[offset + 2] * 0.114 <
-            148
+              pixels[offset + 2] * 0.114
           );
+        };
+        const percentileBackground = (values, percentile = 0.82) => {
+          const histogram = new Uint16Array(256);
+          values.forEach((value) => {
+            histogram[Math.max(0, Math.min(255, Math.round(value)))] += 1;
+          });
+          const target = Math.max(1, Math.round(values.length * percentile));
+          let count = 0;
+          for (let value = 0; value < histogram.length; value += 1) {
+            count += histogram[value];
+            if (count >= target) return value;
+          }
+          return 255;
+        };
+        const columnBackgrounds = new Float32Array(width);
+        for (let x = scanLeft; x <= scanRight; x += 1) {
+          const values = [];
+          for (let y = scanTop; y <= scanBottom; y += 1) values.push(grayAt(x, y));
+          columnBackgrounds[x] = percentileBackground(values);
+        }
+        const rowBackgrounds = new Float32Array(height);
+        for (let y = scanTop; y <= scanBottom; y += 1) {
+          const values = [];
+          for (let x = scanLeft; x <= scanRight; x += 1) values.push(grayAt(x, y));
+          rowBackgrounds[y] = percentileBackground(values);
+        }
+        const isDark = (x, y) => {
+          const background = Math.min(
+            248,
+            (columnBackgrounds[x] + rowBackgrounds[y]) / 2,
+          );
+          return grayAt(x, y) < Math.min(205, background - 28);
         };
         for (let y = scanTop; y <= scanBottom; y += 1) {
           for (let x = scanLeft; x <= scanRight; x += 1) {
@@ -5165,26 +5200,49 @@
           const rows = [];
           const rowSources = [];
           for (const group of groups) {
-            const roomBands = gridBands.length
-              ? gridBands
-              : detectFreeformRows(cleaned, alignment, group.start, group.roomEnd);
-            const waterBands = gridBands.length
-              ? roomBands
-              : matchFreeformColumnBands(
-                  roomBands,
-                  detectFreeformRows(
-                    cleaned,
-                    alignment,
-                    group.roomEnd,
-                    group.waterEnd,
-                  ),
-                );
-            const electricBands = gridBands.length
-              ? roomBands
-              : matchFreeformColumnBands(
-                  roomBands,
-                  detectFreeformRows(cleaned, alignment, group.waterEnd, group.end),
-                );
+            let roomBands;
+            let waterBands;
+            let electricBands;
+            if (gridBands.length) {
+              roomBands = gridBands;
+              waterBands = gridBands;
+              electricBands = gridBands;
+            } else {
+              const detectedRoomBands = detectFreeformRows(
+                cleaned,
+                alignment,
+                group.start,
+                group.roomEnd,
+              );
+              const detectedWaterBands = detectFreeformRows(
+                cleaned,
+                alignment,
+                group.roomEnd,
+                group.waterEnd,
+              );
+              const detectedElectricBands = detectFreeformRows(
+                cleaned,
+                alignment,
+                group.waterEnd,
+                group.end,
+              );
+              const maximumRows = Math.min(40, Math.max(12, state.rooms.length + 4));
+              const detectedColumns = [
+                detectedRoomBands,
+                detectedWaterBands,
+                detectedElectricBands,
+              ];
+              const referenceBands = detectedColumns
+                .filter((bands) => bands.length > 0 && bands.length <= maximumRows)
+                .sort((leftBands, rightBands) => rightBands.length - leftBands.length)[0] ||
+                detectedColumns
+                  .filter((bands) => bands.length)
+                  .sort((leftBands, rightBands) => leftBands.length - rightBands.length)[0] ||
+                [];
+              roomBands = matchFreeformColumnBands(referenceBands, detectedRoomBands);
+              waterBands = matchFreeformColumnBands(referenceBands, detectedWaterBands);
+              electricBands = matchFreeformColumnBands(referenceBands, detectedElectricBands);
+            }
             for (let index = 0; index < roomBands.length; index += 1) {
               const band = roomBands[index];
               const roomNumber = await recognizeFreeformField(
@@ -5611,10 +5669,20 @@
             .filter((band) => band.bottom - band.top <= canvas.height * 0.052)
             .slice(0, 40);
         };
-        let filtered = collectBands(activeThreshold);
-        if (filtered.length < 2) {
-          filtered = collectBands(Math.max(1, Math.floor(activeThreshold * 0.55)));
-        }
+        const maximumRows = Math.min(40, Math.max(12, state.rooms.length + 4));
+        const thresholds = [
+          activeThreshold,
+          Math.max(1, Math.floor(activeThreshold * 0.72)),
+          Math.max(1, Math.floor(activeThreshold * 0.5)),
+          1,
+        ].filter((value, index, values) => values.indexOf(value) === index);
+        const candidates = thresholds.map((minimumInk) => collectBands(minimumInk));
+        const plausible = candidates
+          .filter((bands) => bands.length >= 2 && bands.length <= maximumRows)
+          .sort((leftBands, rightBands) => rightBands.length - leftBands.length);
+        let filtered = plausible[0] || candidates
+          .filter((bands) => bands.length)
+          .sort((leftBands, rightBands) => leftBands.length - rightBands.length)[0] || [];
         const centers = filtered.map((band) => (band.top + band.bottom) / 2);
         const gaps = centers
           .slice(1)
@@ -5641,6 +5709,9 @@
 
       function matchFreeformColumnBands(referenceBands, detectedBands) {
         if (!detectedBands.length) return referenceBands.map((band) => ({ ...band }));
+        if (detectedBands.length < referenceBands.length * 0.5) {
+          return referenceBands.map((band) => ({ ...band }));
+        }
         const referenceCenters = referenceBands.map((band) => (band.top + band.bottom) / 2);
         const detectedCenters = detectedBands.map((band) => (band.top + band.bottom) / 2);
         const pairedCount = Math.min(referenceCenters.length, detectedCenters.length);

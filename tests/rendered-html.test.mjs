@@ -161,7 +161,7 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.match(html, /distance < 14/);
   assert.match(html, /rowBackground - 26/);
   assert.match(html, /canvas\.height \* 0\.002/);
-  assert.match(html, /filtered\.length < 2/);
+  assert.match(html, /const thresholds = \[/);
   assert.match(html, /recognizeFreeformField/);
   assert.match(html, /alignment-canvas/);
   assert.match(html, /alignmentRangeControl\("columnOne"/);
@@ -169,6 +169,10 @@ test("supports free-form handwritten three-column meter imports", async () => {
   assert.match(html, /setAlignmentGuideValue/);
   assert.match(html, /syncAlignmentControlRanges/);
   assert.match(html, /detectFreeformInkGuides/);
+  assert.match(html, /percentileBackground/);
+  assert.match(html, /horizontal\.length < 3/);
+  assert.match(html, /const detectedColumns = \[/);
+  assert.match(html, /detectedBands\.length < referenceBands\.length \* 0\.5/);
   assert.match(html, /columnThresholds/);
   assert.match(html, /applyRoomSequenceCorrection/);
   assert.match(html, /rows\.length > orderedRooms\.length/);
